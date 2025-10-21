@@ -1,0 +1,55 @@
+twilio-inbound:
+    Webhook Twilio calls for incoming SMS to the shared number
+    Runs whenever someone texts the number
+    Handles YES/START (opt-in) and STOP/CANCEL/END/QUIT/UNSUBSCRIBE (opt-out)
+    Affects bot_members (toggle is_opted_in for that phone)
+
+bot-create:
+    API the app calls to create a new bot config (no number purchase)
+    Inserts name, timezone, send time; uses shared Messaging Service/number
+    Returns the created bot row
+    Affects bots
+
+run-due:
+    Scheduled sender that checks which bots are due (by local HH:MM, once/day)
+    Builds “today’s chores” from members/chores/assignments
+    Sends individual SMS via shared Messaging Service; rotates positions
+    Reads bots, bot_members, chores, assignments; writes message_log, updates bots & assignments
+
+send-test:
+    Manual one-off send for a specific bot (no rotation/date stamp)
+    Verifies end-to-end delivery from the app’s Preview screen
+    Reads mapping and sends identical message to opted-in members
+    Reads same tables; writes message_log
+
+To deploy functions:
+supabase functions deploy twilio-inbound
+supabase functions deploy bot-create
+supabase functions deploy run-due
+supabase functions deploy send-test
+
+supabase functions deploy bot-members
+supabase functions deploy bot-chores
+
+
+ToDo in Twilio:
+
+Buy an SMS-capable number.
+Create a Messaging Service (Programmable Messaging → Services).
+Add your number to the service.
+Under Inbound Settings, set the request URL to your deployed twilio-inbound:
+    https://icopkrdsfocjcbnugqif.functions.supabase.co/twilio-inbound
+
+
+Grab:
+Messaging Service SID: MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+E.164 phone: +1XXXXXXXXXX
+Set secrets:
+
+supabase secrets set \
+  SUPABASE_URL=https://icopkrdsfocjcbnugqif.supabase.co \
+  SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key> \
+  TWILIO_ACCOUNT_SID=<AC...> \
+  TWILIO_AUTH_TOKEN=<twilio-token> \
+  TWILIO_MESSAGING_SERVICE_SID=MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+  TWILIO_SHARED_NUMBER_E164=+1XXXXXXXXXX
