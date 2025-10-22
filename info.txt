@@ -40,6 +40,7 @@ Add your number to the service.
 Under Inbound Settings, set the request URL to your deployed twilio-inbound:
     https://icopkrdsfocjcbnugqif.functions.supabase.co/twilio-inbound
 
+Have Conversations Set Up: supabase secrets set TWILIO_CONVERSATIONS_SERVICE_SID=ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 Grab:
 Messaging Service SID: MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -53,3 +54,35 @@ supabase secrets set \
   TWILIO_AUTH_TOKEN=<twilio-token> \
   TWILIO_MESSAGING_SERVICE_SID=MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
   TWILIO_SHARED_NUMBER_E164=+1XXXXXXXXXX
+
+
+
+Function and App Workflow:
+  App → bot-create (on Create Bot screen)
+    Trigger: Tap “Next: Members”.
+    Body: { name, timezone, schedule_time_local, owner_user_id }.
+    Effect: Inserts a bot row (uses shared Twilio service/number).
+
+  App → bot-members (on Members screen)
+    Trigger: Tap “Next: Chores”.
+    Body: { botId, members: [{display_name, phone_e164}, ...] }.
+    Effect: Uploads and inserts bot_members.
+
+  App → bot-chores (on Chores screen)
+    Trigger: Tap “Next: Preview”.
+    Body: { botId, chores: [{title}, ...] }.
+    Effect: Upserts chores, replaces assignments with a fresh permutation (sets position_index).
+
+  App → send-test (on Preview screen)
+    Trigger: Tap “Send Test”.
+    Body: { botId }.
+    Effect: Reads members/chores/assignments → composes one message → sends to each opted-in member → logs to message_log. (No rotation/date change.)
+
+  Scheduler → run-due (automatic)
+    Trigger: Supabase Schedule calls it every 1–5 min.
+    Effect: For each bot whose local HH:MM == schedule_time_local and not sent today: compose → send → log → set last_sent_date → rotate assignments.
+
+  Twilio → twilio-inbound (automatic)
+    Trigger: Someone texts your shared number.
+    Body: From, Body (e.g., YES/STOP).
+    Effect: Toggles bot_members.is_opted_in for that phone (affects all bots on that number).

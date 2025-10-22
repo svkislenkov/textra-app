@@ -5,69 +5,116 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
+
+// Twilio (Conversations API)
 const ACC = Deno.env.get("TWILIO_ACCOUNT_SID")!;
 const TOK = Deno.env.get("TWILIO_AUTH_TOKEN")!;
-const SHARED_SVC = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID")!;
 
-async function twilioSend(to: string, body: string) {
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${ACC}/Messages.json`;
-  const form = new URLSearchParams({ To: to, MessagingServiceSid: SHARED_SVC, Body: body });
-  const res = await fetch(url, { method: "POST", headers: { Authorization: "Basic " + btoa(`${ACC}:${TOK}`) }, body: form });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+function toLocalHM(dateUTC: Date, tz: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit"
+  }).formatToParts(dateUTC);
+  const h = parts.find(p => p.type === "hour")?.value ?? "00";
+  const m = parts.find(p => p.type === "minute")?.value ?? "00";
+  return `${h}:${m}`;
+}
+function toLocalDateISO(dateUTC: Date, tz: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(dateUTC); // YYYY-MM-DD
 }
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  const { botId } = await req.json();
-  if (!botId) return new Response("Missing botId", { status: 400 });
+async function sendToConversation(conversationSid: string, body: string) {
+  const url = `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + btoa(`${ACC}:${TOK}`),
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ Body: body }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { sid: 'IM...', ... }
+}
 
-  const { data: bot } = await supabase.from("bots").select("*").eq("id", botId).maybeSingle();
-  if (!bot) return new Response("Bot not found", { status: 404 });
+Deno.serve(async () => {
+  const now = new Date();
 
-  const { data: members } = await supabase
-    .from("bot_members")
-    .select("id, display_name, phone_e164, is_opted_in")
-    .eq("bot_id", botId).eq("is_opted_in", true);
+  // Load active bots (must have conversation_sid)
+  const { data: bots, error } = await supabase
+    .from("bots")
+    .select("id, name, timezone, schedule_time_local, last_sent_date, conversation_sid")
+    .eq("is_active", true);
+  if (error) return new Response(error.message, { status: 500 });
 
-  const { data: chores } = await supabase
-    .from("chores")
-    .select("id, title")
-    .eq("bot_id", botId);
+  const due = (bots ?? []).filter((b: any) =>
+    b.conversation_sid &&
+    toLocalHM(now, b.timezone) === b.schedule_time_local &&
+    toLocalDateISO(now, b.timezone) !== String(b.last_sent_date || "")
+  );
 
-  const { data: assigns } = await supabase
-    .from("assignments")
-    .select("id, member_id, chore_id, position_index")
-    .eq("bot_id", botId)
-    .order("position_index", { ascending: true });
+  const results: Array<{ botId: string; sent: number }> = [];
 
-  if (!members?.length || !chores?.length || !assigns?.length) {
-    return new Response("Nothing to send", { status: 200 });
-  }
+  for (const bot of due) {
+    const botId = bot.id;
 
-  const membById = new Map(members.map(m => [m.id, m] as const));
-  const choreById = new Map(chores.map(c => [c.id, c] as const));
-  const mapping = assigns.map(a => ({ member: membById.get(a.member_id)!, chore: choreById.get(a.chore_id)! }));
+    // Pull mapping
+    const [{ data: members }, { data: chores }, { data: assigns }] = await Promise.all([
+      supabase.from("bot_members")
+        .select("id, display_name, is_opted_in")
+        .eq("bot_id", botId)
+        .eq("is_opted_in", true),
+      supabase.from("chores")
+        .select("id, title")
+        .eq("bot_id", botId),
+      supabase.from("assignments")
+        .select("id, member_id, chore_id, position_index")
+        .eq("bot_id", botId)
+        .order("position_index", { ascending: true }),
+    ]);
 
-  const header = `${bot.name} — Today’s chores:`;
-  const lines = mapping.map(x => `• ${x.member.display_name} — ${x.chore.title}`);
-  const body = `${header}\n${lines.join("\n")}\n\nReply STOP to opt out.`;
+    if (!members?.length || !chores?.length || !assigns?.length) continue;
 
-  let sentCount = 0;
-  for (const m of members) {
-    try {
-      const tw = await twilioSend(m.phone_e164, body);
-      await supabase.from("message_log").insert({
-        bot_id: botId, twilio_sid: tw.sid, to_phone: m.phone_e164, status: tw.status, body
-      });
-      sentCount++;
-    } catch (e) {
-      await supabase.from("message_log").insert({
-        bot_id: botId, to_phone: m.phone_e164, status: "error", body, error: String(e)
-      });
+    const membById = new Map(members.map(m => [m.id, m] as const));
+    const choreById = new Map(chores.map(c => [c.id, c] as const));
+    const mapping = assigns.map(a => ({ member: membById.get(a.member_id)!, chore: choreById.get(a.chore_id)! }));
+
+    const header = `${bot.name} — Today’s chores:`;
+    const lines = mapping.map(x => `• ${x.member.display_name} — ${x.chore.title}`);
+    const body = `${header}\n${lines.join("\n")}\n\nReply STOP to opt out.`;
+
+    // ONE post to the Conversation (fan-out handled by Twilio)
+    const tw = await sendToConversation(bot.conversation_sid, body);
+
+    // Log once per bot send
+    await supabase.from("message_log").insert({
+      bot_id: botId,
+      twilio_sid: tw.sid,
+      to_phone: `CONV:${bot.conversation_sid}`,
+      status: "sent",
+      body,
+    });
+
+    // Stamp last_sent_date (bot’s local day)
+    await supabase
+      .from("bots")
+      .update({ last_sent_date: toLocalDateISO(now, bot.timezone) })
+      .eq("id", botId);
+
+    // Rotate indices modulo N
+    const N = assigns.length;
+    for (const a of assigns) {
+      await supabase
+        .from("assignments")
+        .update({ position_index: (a.position_index + 1) % N })
+        .eq("id", a.id);
     }
+
+    results.push({ botId, sent: 1 });
   }
 
-  return new Response(JSON.stringify({ sent: sentCount }), { headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify({ ran: results }), {
+    headers: { "content-type": "application/json" },
+  });
 });
-

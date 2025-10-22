@@ -1,30 +1,39 @@
 /// <reference types="https://esm.sh/@supabase/functions-js@2/edge-runtime.d.ts" />
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const ACC = Deno.env.get("TWILIO_ACCOUNT_SID")!; const TOK = Deno.env.get("TWILIO_AUTH_TOKEN")!;
+const IS = Deno.env.get("TWILIO_CONVERSATIONS_SERVICE_SID")!;
+const SHARED_NUM = Deno.env.get("TWILIO_SHARED_NUMBER_E164")!;
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
+const tw = (path:string, method:"GET"|"POST", body?:URLSearchParams) =>
+  fetch(`https://conversations.twilio.com/v1/${path}`, {
+    method, headers:{Authorization:"Basic "+btoa(`${ACC}:${TOK}`)}, body
+  });
 
-type Member = { display_name: string; phone_e164: string };
+Deno.serve(async (req)=>{
+  if (req.method !== "POST") return new Response("Method not allowed",{status:405});
+  const { botId, members } = await req.json();
+  if (!botId) return new Response("botId required", {status:400});
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  const { botId, members } = await req.json() as { botId: string; members: Member[] };
-  if (!botId || !Array.isArray(members)) return new Response("botId + members[] required", { status: 400 });
+  // 1) Upsert members in DB
+  if (Array.isArray(members) && members.length) {
+    const rows = members.map((m:any)=>({bot_id:botId, display_name:m.display_name, phone_e164:m.phone_e164}));
+    const up = await supabase.from("bot_members").upsert(rows, { onConflict: "bot_id,phone_e164" });
+    if (up.error) return new Response(up.error.message, {status:400});
+  }
 
-  // Upsert by (bot_id, phone_e164). Add this unique index once in SQL:
-  // CREATE UNIQUE INDEX IF NOT EXISTS uq_member_phone ON bot_members(bot_id, phone_e164);
-  const rows = members.map(m => ({
-    bot_id: botId,
-    display_name: m.display_name,
-    phone_e164: m.phone_e164,
-  }));
+  // 2) Add each as SMS participant to the Conversation
+  const { data: bot } = await supabase.from("bots").select("conversation_sid").eq("id", botId).maybeSingle();
+  if (!bot?.conversation_sid) return new Response("Conversation missing", {status:400});
 
-  const { error } = await supabase
-    .from("bot_members")
-    .upsert(rows, { onConflict: "bot_id,phone_e164" });
+  for (const m of (members||[])) {
+    const p = new URLSearchParams({
+      "MessagingBinding.Address": m.phone_e164,
+      "MessagingBinding.ProxyAddress": SHARED_NUM
+    });
+    const r = await tw(`Services/${IS}/Conversations/${bot.conversation_sid}/Participants`, "POST", p); // add SMS participant. :contentReference[oaicite:5]{index=5}
+    // Ignore 409/50416 “already added” errors in practice. :contentReference[oaicite:6]{index=6}
+  }
 
-  if (error) return new Response(error.message, { status: 400 });
-  return new Response(JSON.stringify({ ok: true, count: rows.length }), { headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify({ ok:true }), {headers:{ "content-type":"application/json"}});
 });
