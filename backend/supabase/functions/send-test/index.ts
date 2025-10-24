@@ -6,11 +6,20 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-// Twilio (Conversations API)
-const ACC = Deno.env.get("TWILIO_ACCOUNT_SID")!;
-const TOK = Deno.env.get("TWILIO_AUTH_TOKEN")!;
+// Mock mode: check if Twilio credentials are available
+const MOCK_MODE = !Deno.env.get("TWILIO_ACCOUNT_SID");
+const ACC = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
+const TOK = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
 
 async function sendToConversation(conversationSid: string, body: string) {
+  if (MOCK_MODE) {
+    // Mock mode: just log the message that would be sent
+    console.log(`[MOCK MODE] Would send to conversation ${conversationSid}:`);
+    console.log(body);
+    return { sid: `IM${crypto.randomUUID().replace(/-/g, '').substring(0, 32)}` };
+  }
+
+  // Real mode: Send to Twilio
   const url = `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Messages`;
   const res = await fetch(url, {
     method: "POST",
