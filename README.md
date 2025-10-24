@@ -16,6 +16,3 @@ For more details, see:
 
 [Privacy Policy](https://svkislenkov.github.io/textra-app/privacy)
 [Terms and Conditions](https://svkislenkov.github.io/textra-app/terms)
-
-Privacy Policy
-Terms and Conditions
