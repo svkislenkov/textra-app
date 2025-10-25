@@ -1,11 +1,22 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { useCallback } from "react";
+
+interface Bot {
+  id: string;
+  name: string;
+  description: string;
+  message: string;
+  frequency: string;
+  time: string;
+}
 
 export default function HomeScreen() {
   const [userEmail, setUserEmail] = useState("");
+  const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -28,6 +39,35 @@ export default function HomeScreen() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const fetchBots = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("bots")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching bots:", error);
+        return;
+      }
+
+      setBots(data || []);
+    } catch (error) {
+      console.error("Error fetching bots:", error);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchBots();
+    }, [])
+  );
+
+  const formatTime = (timeString: string) => {
+    const date = new Date(timeString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   async function handleSignOut() {
     setLoading(true);
@@ -69,7 +109,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.content}>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.topSection}>
             <Text style={styles.logoText}>TEXTRA</Text>
           </View>
@@ -86,9 +126,30 @@ export default function HomeScreen() {
                 <Text style={styles.addButtonText}>+</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.sectionContent}>
-              <Text style={styles.sectionPlaceholder}>No bots yet</Text>
-            </View>
+            {bots.length === 0 ? (
+              <View style={styles.sectionContent}>
+                <Text style={styles.sectionPlaceholder}>No bots yet</Text>
+              </View>
+            ) : (
+              <View style={styles.botsListContainer}>
+                {bots.map((bot) => (
+                  <View key={bot.id} style={styles.botCard}>
+                    <Text style={styles.botName}>{bot.name}</Text>
+                    <Text style={styles.botDescription}>{bot.description}</Text>
+                    <View style={styles.botDetails}>
+                      <View style={styles.botDetailItem}>
+                        <Text style={styles.botDetailLabel}>Frequency:</Text>
+                        <Text style={styles.botDetailValue}>{bot.frequency}</Text>
+                      </View>
+                      <View style={styles.botDetailItem}>
+                        <Text style={styles.botDetailLabel}>Time:</Text>
+                        <Text style={styles.botDetailValue}>{formatTime(bot.time)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Groups Section */}
@@ -107,7 +168,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionPlaceholder}>No groups yet</Text>
             </View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -217,5 +278,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "rgba(255, 255, 255, 0.6)",
     fontStyle: "italic",
+  },
+  botsListContainer: {
+    gap: 12,
+  },
+  botCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  botName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#ffffff",
+    marginBottom: 6,
+  },
+  botDescription: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginBottom: 12,
+  },
+  botDetails: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  botDetailItem: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  botDetailLabel: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.7)",
+    fontWeight: "600",
+  },
+  botDetailValue: {
+    fontSize: 12,
+    color: "#ffffff",
+    fontWeight: "500",
   },
 });
