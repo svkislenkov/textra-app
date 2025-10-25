@@ -84,6 +84,7 @@ export default function SignUpScreen() {
                 style={styles.logo}
                 resizeMode="contain"
               />
+              <Text style={styles.logoText}>TEXTRA</Text>
             </View>
 
             {/* Welcome Text */}
@@ -189,16 +190,24 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginTop: 60,
-    marginBottom: 50,
+    marginTop: 40,
+    marginBottom: 20,
   },
   logo: {
-    width: 600,
-    height: 600,
+    width: 180,
+    height: 180,
+  },
+  logoText: {
+    fontSize: 42,
+    fontWeight: "bold",
+    color: "#ffffff",
+    letterSpacing: 4,
+    marginTop: 12,
+    fontFamily: Platform.OS === "ios" ? "Mono" : "monospace",
   },
   welcomeContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 25,
   },
   welcomeTitle: {
     fontSize: 32,

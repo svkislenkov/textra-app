@@ -71,31 +71,42 @@ export default function HomeScreen() {
 
         <View style={styles.content}>
           <View style={styles.topSection}>
-            <Text style={styles.logoText}>Textra</Text>
+            <Text style={styles.logoText}>TEXTRA</Text>
           </View>
 
-          <View style={styles.welcomeContainer}>
-            <Text style={styles.welcomeTitle}>Welcome!</Text>
-            <Text style={styles.welcomeSubtitle}>You're signed in as:</Text>
-            <Text style={styles.emailText}>{userEmail}</Text>
+          {/* Textra Bots Section */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Bots</Text>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => router.push("/create-bot")}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addButtonText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.sectionContent}>
+              <Text style={styles.sectionPlaceholder}>No bots yet</Text>
+            </View>
           </View>
 
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoText}>
-            This is your home page. More features coming soon!
-          </Text>
-        </View>
-
-          <TouchableOpacity
-            style={[styles.signOutButton, loading && styles.buttonDisabled]}
-            onPress={handleSignOut}
-            activeOpacity={0.8}
-            disabled={loading}
-          >
-            <Text style={styles.signOutButtonText}>
-              {loading ? "Signing Out..." : "Sign Out"}
-            </Text>
-          </TouchableOpacity>
+          {/* Groups Section */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Groups</Text>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => router.push("/create-group")}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addButtonText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.sectionContent}>
+              <Text style={styles.sectionPlaceholder}>No groups yet</Text>
+            </View>
+          </View>
         </View>
       </SafeAreaView>
     </LinearGradient>
@@ -143,13 +154,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: "center",
     paddingHorizontal: 30,
-    paddingTop: 100,
+    paddingTop: 20,
   },
   topSection: {
     alignItems: "center",
-    marginBottom: 50,
+    marginBottom: 30,
   },
   logoText: {
     fontSize: 36,
@@ -157,61 +167,55 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     letterSpacing: 2,
   },
-  welcomeContainer: {
-    alignItems: "center",
-    marginBottom: 30,
+  sectionContainer: {
+    marginBottom: 24,
   },
-  welcomeTitle: {
-    fontSize: 32,
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 24,
     fontWeight: "bold",
     color: "#ffffff",
-    marginBottom: 10,
   },
-  welcomeSubtitle: {
-    fontSize: 15,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginBottom: 6,
-  },
-  emailText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginTop: 2,
-  },
-  infoContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
-  },
-  infoText: {
-    fontSize: 15,
-    color: "#ffffff",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  signOutButton: {
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  signOutButtonText: {
-    color: "#764ba2",
-    fontSize: 18,
+  addButtonText: {
+    fontSize: 24,
     fontWeight: "bold",
+    color: "#764ba2",
+    lineHeight: 24,
+  },
+  sectionContent: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 20,
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sectionPlaceholder: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.6)",
+    fontStyle: "italic",
   },
 });
