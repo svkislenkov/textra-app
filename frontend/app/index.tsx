@@ -73,7 +73,7 @@ export default function LoginScreen() {
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.logoText}>Textra</Text>
+              <Text style={styles.logoText}>TEXTRA</Text>
             </View>
 
             {/* Welcome Text */}
@@ -168,23 +168,24 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginTop: 60,
-    marginBottom: 50,
+    marginTop: 40,
+    marginBottom: 20,
   },
   logo: {
-    width: 280,
-    height: 280,
+    width: 180,
+    height: 180,
   },
   logoText: {
-    fontSize: 48,
+    fontSize: 42,
     fontWeight: "bold",
     color: "#ffffff",
-    letterSpacing: 2,
-    marginTop: 20,
+    letterSpacing: 4,
+    marginTop: 12,
+    fontFamily: Platform.OS === "ios" ? "Mono" : "monospace",
   },
   welcomeContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 25,
   },
   welcomeTitle: {
     fontSize: 32,
