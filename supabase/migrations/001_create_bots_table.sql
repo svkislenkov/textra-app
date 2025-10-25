@@ -18,25 +18,25 @@ ALTER TABLE public.bots ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own bots"
   ON public.bots
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = bots.user_id);
 
 -- Create policy to allow users to insert their own bots
 CREATE POLICY "Users can create their own bots"
   ON public.bots
   FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (auth.uid() = bots.user_id);
 
 -- Create policy to allow users to update their own bots
 CREATE POLICY "Users can update their own bots"
   ON public.bots
   FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = bots.user_id);
 
 -- Create policy to allow users to delete their own bots
 CREATE POLICY "Users can delete their own bots"
   ON public.bots
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = bots.user_id);
 
 -- Create an index on user_id for faster queries
 CREATE INDEX IF NOT EXISTS bots_user_id_idx ON public.bots(user_id);

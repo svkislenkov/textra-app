@@ -14,9 +14,16 @@ interface Bot {
   time: string;
 }
 
+interface Group {
+  id: string;
+  name: string;
+  member_count?: number;
+}
+
 export default function HomeScreen() {
   const [userEmail, setUserEmail] = useState("");
   const [bots, setBots] = useState<Bot[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -58,9 +65,35 @@ export default function HomeScreen() {
     }
   };
 
+  const fetchGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("groups")
+        .select("*, group_members(count)")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching groups:", error);
+        return;
+      }
+
+      // Transform the data to include member count
+      const groupsWithCount = data.map(group => ({
+        id: group.id,
+        name: group.name,
+        member_count: group.group_members?.[0]?.count || 0,
+      }));
+
+      setGroups(groupsWithCount || []);
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchBots();
+      fetchGroups();
     }, [])
   );
 
@@ -134,7 +167,16 @@ export default function HomeScreen() {
               <View style={styles.botsListContainer}>
                 {bots.map((bot) => (
                   <View key={bot.id} style={styles.botCard}>
-                    <Text style={styles.botName}>{bot.name}</Text>
+                    <View style={styles.botCardHeader}>
+                      <Text style={styles.botName}>{bot.name}</Text>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => router.push(`/edit-bot?id=${bot.id}`)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.editButtonText}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.botDescription}>{bot.description}</Text>
                     <View style={styles.botDetails}>
                       <View style={styles.botDetailItem}>
@@ -164,9 +206,31 @@ export default function HomeScreen() {
                 <Text style={styles.addButtonText}>+</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.sectionContent}>
-              <Text style={styles.sectionPlaceholder}>No groups yet</Text>
-            </View>
+            {groups.length === 0 ? (
+              <View style={styles.sectionContent}>
+                <Text style={styles.sectionPlaceholder}>No groups yet</Text>
+              </View>
+            ) : (
+              <View style={styles.botsListContainer}>
+                {groups.map((group) => (
+                  <View key={group.id} style={styles.botCard}>
+                    <View style={styles.botCardHeader}>
+                      <Text style={styles.botName}>{group.name}</Text>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => router.push(`/edit-group?id=${group.id}`)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.editButtonText}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.botDescription}>
+                      {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -289,11 +353,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.2)",
   },
+  botCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   botName: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#ffffff",
-    marginBottom: 6,
+    flex: 1,
+  },
+  editButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+  },
+  editButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   botDescription: {
     fontSize: 14,
