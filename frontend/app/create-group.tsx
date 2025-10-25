@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, SafeAreaView, ScrollView, Modal, FlatList } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -9,6 +9,15 @@ interface Member {
   id: string;
   name: string;
   phone_number: string;
+}
+
+interface Bot {
+  id: string;
+  name: string;
+  description: string;
+  function?: string;
+  type?: string;
+  frequency: string;
 }
 
 export default function CreateGroupScreen() {
@@ -26,6 +35,63 @@ export default function CreateGroupScreen() {
   const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingContacts, setLoadingContacts] = useState(false);
+
+  // Bot selection state
+  const [availableBots, setAvailableBots] = useState<Bot[]>([]);
+  const [selectedBots, setSelectedBots] = useState<Bot[]>([]);
+  const [showBotPicker, setShowBotPicker] = useState(false);
+
+  useEffect(() => {
+    fetchAvailableBots();
+  }, []);
+
+  async function fetchAvailableBots() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error("No user found");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("bots")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching bots:", error);
+        return;
+      }
+
+      setAvailableBots(data || []);
+    } catch (error) {
+      console.error("Error fetching bots:", error);
+    }
+  }
+
+  const formatPhoneNumber = (text: string) => {
+    // Remove all non-digit characters
+    const cleaned = text.replace(/\D/g, '');
+
+    // Limit to 10 digits
+    const limited = cleaned.substring(0, 10);
+
+    // Format as (XXX) XXX-XXXX
+    if (limited.length <= 3) {
+      return limited;
+    } else if (limited.length <= 6) {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+    } else {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+    }
+  };
+
+  const handleManualPhoneChange = (text: string) => {
+    const formatted = formatPhoneNumber(text);
+    setManualPhone(formatted);
+  };
 
   async function requestContactPermission() {
     const { status } = await Contacts.requestPermissionsAsync();
@@ -114,14 +180,27 @@ export default function CreateGroupScreen() {
     setMembers(members.filter(m => m.id !== id));
   }
 
-  async function handleCreateGroup() {
-    if (!groupName.trim()) {
-      Alert.alert('Error', 'Please enter a group name');
+  function addBot(botId: string) {
+    // Check if bot is already selected
+    if (selectedBots.some(b => b.id === botId)) {
+      Alert.alert('Already Added', 'This bot is already assigned to the group.');
       return;
     }
 
-    if (members.length === 0) {
-      Alert.alert('Error', 'Please add at least one member to the group');
+    const bot = availableBots.find(b => b.id === botId);
+    if (bot) {
+      setSelectedBots([...selectedBots, bot]);
+      setShowBotPicker(false);
+    }
+  }
+
+  function removeBot(id: string) {
+    setSelectedBots(selectedBots.filter(b => b.id !== id));
+  }
+
+  async function handleCreateGroup() {
+    if (!groupName.trim()) {
+      Alert.alert('Error', 'Please enter a group name');
       return;
     }
 
@@ -132,6 +211,35 @@ export default function CreateGroupScreen() {
 
       if (!user) {
         Alert.alert('Error', 'You must be logged in to create a group');
+        return;
+      }
+
+      // Check if user has a profile
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        Alert.alert(
+          'Profile Required',
+          'You need to set up your profile before creating a group.',
+          [
+            {
+              text: 'Set Up Profile',
+              onPress: () => {
+                setLoading(false);
+                router.push('/profile-setup');
+              },
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setLoading(false),
+            },
+          ]
+        );
         return;
       }
 
@@ -150,12 +258,22 @@ export default function CreateGroupScreen() {
         return;
       }
 
-      // Add all members
-      const memberInserts = members.map(member => ({
-        group_id: groupData.id,
-        name: member.name,
-        phone_number: member.phone_number,
-      }));
+      // Add current user as first member
+      const memberInserts = [
+        {
+          group_id: groupData.id,
+          name: profile.name,
+          phone_number: profile.phone_number,
+          user_id: user.id, // Mark this member as the current user
+        },
+        // Add all other members
+        ...members.map(member => ({
+          group_id: groupData.id,
+          name: member.name,
+          phone_number: member.phone_number,
+          user_id: null, // Other members don't have a user_id
+        })),
+      ];
 
       const { error: membersError } = await supabase
         .from('group_members')
@@ -164,6 +282,24 @@ export default function CreateGroupScreen() {
       if (membersError) {
         Alert.alert('Error', membersError.message);
         return;
+      }
+
+      // Add bot assignments if any bots are selected
+      if (selectedBots.length > 0) {
+        const botInserts = selectedBots.map(bot => ({
+          bot_id: bot.id,
+          group_id: groupData.id,
+          current_member_index: 0, // Start with first member
+        }));
+
+        const { error: botsError } = await supabase
+          .from('bot_groups')
+          .insert(botInserts);
+
+        if (botsError) {
+          Alert.alert('Error', botsError.message);
+          return;
+        }
       }
 
       Alert.alert('Success', 'Group created successfully!', [
@@ -261,8 +397,8 @@ export default function CreateGroupScreen() {
                   <TextInput
                     style={[styles.input, styles.inputSpacing]}
                     value={manualPhone}
-                    onChangeText={setManualPhone}
-                    placeholder="Phone Number"
+                    onChangeText={handleManualPhoneChange}
+                    placeholder="(555) 555-5555"
                     placeholderTextColor="rgba(255, 255, 255, 0.5)"
                     keyboardType="phone-pad"
                   />
@@ -300,6 +436,51 @@ export default function CreateGroupScreen() {
               {members.length === 0 && (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateText}>No members added yet</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Bots Section */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>Bots ({selectedBots.length})</Text>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => setShowBotPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.addButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Selected Bots List */}
+              {selectedBots.length > 0 && (
+                <View style={styles.botsListContainer}>
+                  {selectedBots.map((bot) => (
+                    <View key={bot.id} style={styles.botCard}>
+                      <View style={styles.botInfo}>
+                        <Text style={styles.botName}>{bot.name}</Text>
+                        <Text style={styles.botDetails}>
+                          {bot.function && `${bot.function} - `}
+                          {bot.type && `${bot.type} - `}
+                          {bot.frequency}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.removeBotButton}
+                        onPress={() => removeBot(bot.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.removeBotButtonText}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {selectedBots.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No bots assigned yet</Text>
                 </View>
               )}
             </View>
@@ -375,6 +556,54 @@ export default function CreateGroupScreen() {
             </SafeAreaView>
           </LinearGradient>
         </Modal>
+
+        {/* Bot Picker Modal */}
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={showBotPicker}
+          onRequestClose={() => setShowBotPicker(false)}
+        >
+          <LinearGradient
+            colors={["#667eea", "#764ba2", "#f093fb"]}
+            style={styles.container}
+          >
+            <SafeAreaView style={styles.safeArea}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select a Bot</Text>
+                <TouchableOpacity onPress={() => setShowBotPicker(false)}>
+                  <Text style={styles.modalCloseText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+
+              <FlatList
+                data={availableBots}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.contactItem}
+                    onPress={() => addBot(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View>
+                      <Text style={styles.contactName}>{item.name}</Text>
+                      <Text style={styles.contactPhone}>
+                        {item.function && `${item.function} - `}
+                        {item.type && `${item.type} - `}
+                        {item.frequency}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No bots available</Text>
+                  </View>
+                }
+              />
+            </SafeAreaView>
+          </LinearGradient>
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -437,11 +666,38 @@ const styles = StyleSheet.create({
   sectionContainer: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   sectionLabel: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#ffffff",
-    marginBottom: 12,
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  addButtonText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#764ba2",
+    lineHeight: 24,
   },
   addButtonsContainer: {
     flexDirection: "row",
@@ -461,6 +717,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
   },
   manualAddContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.1)",
@@ -606,5 +863,46 @@ const styles = StyleSheet.create({
   contactPhone: {
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.7)",
+  },
+  botsListContainer: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  botCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  botInfo: {
+    flex: 1,
+  },
+  botName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  botDetails: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  removeBotButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 59, 48, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  removeBotButtonText: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "bold",
+    lineHeight: 20,
   },
 });

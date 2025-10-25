@@ -9,14 +9,21 @@ export default function EditBotScreen() {
   const { id } = useLocalSearchParams();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [message, setMessage] = useState("");
+  const [functionType, setFunctionType] = useState("Chore Rotation");
+  const [choreType, setChoreType] = useState("Take out trash");
   const [frequency, setFrequency] = useState("Daily");
+  const [dayOfWeek, setDayOfWeek] = useState("Monday");
+  const [dayOfMonth, setDayOfMonth] = useState(1);
   const [time, setTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
+  const functions = ["Chore Rotation"];
+  const choreTypes = ["Take out trash", "Clean kitchen", "Clean bathroom"];
   const frequencies = ["Daily", "Weekly", "Monthly"];
+  const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const daysOfMonth = Array.from({ length: 28 }, (_, i) => i + 1);
 
   useEffect(() => {
     fetchBot();
@@ -45,8 +52,11 @@ export default function EditBotScreen() {
       if (data) {
         setName(data.name);
         setDescription(data.description);
-        setMessage(data.message);
+        setFunctionType(data.function || "Chore Rotation");
+        setChoreType(data.type || "Take out trash");
         setFrequency(data.frequency);
+        setDayOfWeek(data.day_of_week || "Monday");
+        setDayOfMonth(data.day_of_month || 1);
         setTime(new Date(data.time));
       }
     } catch (error) {
@@ -59,7 +69,9 @@ export default function EditBotScreen() {
   }
 
   const handleTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(Platform.OS === "ios");
+    if (Platform.OS === "android") {
+      setShowTimePicker(false);
+    }
     if (selectedTime) {
       setTime(selectedTime);
     }
@@ -70,7 +82,7 @@ export default function EditBotScreen() {
   };
 
   async function handleUpdateBot() {
-    if (!name.trim() || !description.trim() || !message.trim()) {
+    if (!name.trim() || !description.trim()) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
@@ -83,8 +95,11 @@ export default function EditBotScreen() {
         .update({
           name: name.trim(),
           description: description.trim(),
-          message: message.trim(),
+          function: functionType,
+          type: choreType,
           frequency: frequency,
+          day_of_week: frequency === "Weekly" ? dayOfWeek : null,
+          day_of_month: frequency === "Monthly" ? dayOfMonth : null,
           time: time.toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -216,18 +231,58 @@ export default function EditBotScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Message</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={message}
-                onChangeText={setMessage}
-                placeholder="Enter message to send"
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                multiline
-                numberOfLines={4}
-                editable={!loading}
-              />
+              <Text style={styles.inputLabel}>Function</Text>
+              <View style={styles.frequencyContainer}>
+                {functions.map((func) => (
+                  <TouchableOpacity
+                    key={func}
+                    style={[
+                      styles.frequencyButton,
+                      functionType === func && styles.frequencyButtonActive,
+                    ]}
+                    onPress={() => setFunctionType(func)}
+                    disabled={loading}
+                  >
+                    <Text
+                      style={[
+                        styles.frequencyButtonText,
+                        functionType === func && styles.frequencyButtonTextActive,
+                      ]}
+                    >
+                      {func}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
+
+            {functionType === "Chore Rotation" && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Type</Text>
+                <View style={styles.frequencyContainer}>
+                  {choreTypes.map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.frequencyButton,
+                        choreType === type && styles.frequencyButtonActive,
+                      ]}
+                      onPress={() => setChoreType(type)}
+                      disabled={loading}
+                    >
+                      <Text
+                        style={[
+                          styles.frequencyButtonText,
+                          choreType === type && styles.frequencyButtonTextActive,
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Frequency</Text>
@@ -255,23 +310,93 @@ export default function EditBotScreen() {
               </View>
             </View>
 
+            {frequency === "Weekly" && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Day of Week</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.frequencyContainer}>
+                    {daysOfWeek.map((day) => (
+                      <TouchableOpacity
+                        key={day}
+                        style={[
+                          styles.frequencyButton,
+                          dayOfWeek === day && styles.frequencyButtonActive,
+                        ]}
+                        onPress={() => setDayOfWeek(day)}
+                        disabled={loading}
+                      >
+                        <Text
+                          style={[
+                            styles.frequencyButtonText,
+                            dayOfWeek === day && styles.frequencyButtonTextActive,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {frequency === "Monthly" && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Day of Month</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.frequencyContainer}>
+                    {daysOfMonth.map((day) => (
+                      <TouchableOpacity
+                        key={day}
+                        style={[
+                          styles.dayButton,
+                          dayOfMonth === day && styles.frequencyButtonActive,
+                        ]}
+                        onPress={() => setDayOfMonth(day)}
+                        disabled={loading}
+                      >
+                        <Text
+                          style={[
+                            styles.frequencyButtonText,
+                            dayOfMonth === day && styles.frequencyButtonTextActive,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Time</Text>
               <TouchableOpacity
                 style={styles.input}
-                onPress={() => setShowTimePicker(true)}
+                onPress={() => setShowTimePicker(!showTimePicker)}
                 disabled={loading}
               >
                 <Text style={styles.timeText}>{formatTime(time)}</Text>
               </TouchableOpacity>
               {showTimePicker && (
-                <DateTimePicker
-                  value={time}
-                  mode="time"
-                  is24Hour={false}
-                  display="default"
-                  onChange={handleTimeChange}
-                />
+                <View>
+                  <DateTimePicker
+                    value={time}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={handleTimeChange}
+                  />
+                  {Platform.OS === "ios" && (
+                    <TouchableOpacity
+                      style={styles.doneButton}
+                      onPress={() => setShowTimePicker(false)}
+                    >
+                      <Text style={styles.doneButtonText}>Done</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             </View>
 
@@ -389,9 +514,30 @@ const styles = StyleSheet.create({
   frequencyButtonTextActive: {
     color: "#764ba2",
   },
+  dayButton: {
+    minWidth: 50,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
   timeText: {
     fontSize: 16,
     color: "#ffffff",
+  },
+  doneButton: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  doneButtonText: {
+    color: "#764ba2",
+    fontSize: 16,
+    fontWeight: "600",
   },
   updateButton: {
     backgroundColor: "#ffffff",

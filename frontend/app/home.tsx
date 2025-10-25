@@ -9,8 +9,11 @@ interface Bot {
   id: string;
   name: string;
   description: string;
-  message: string;
+  function?: string;
+  type?: string;
   frequency: string;
+  day_of_week?: string;
+  day_of_month?: number;
   time: string;
 }
 
@@ -27,10 +30,22 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Get current user
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // Get current user and check profile
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
         setUserEmail(user.email || "");
+
+        // Check if user has a profile
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        // If no profile exists, redirect to profile setup
+        if (!profile) {
+          router.push('/profile-setup');
+        }
       } else {
         // If no user, redirect to login
         router.replace("/");
@@ -179,10 +194,36 @@ export default function HomeScreen() {
                     </View>
                     <Text style={styles.botDescription}>{bot.description}</Text>
                     <View style={styles.botDetails}>
+                      {bot.function && (
+                        <View style={styles.botDetailItem}>
+                          <Text style={styles.botDetailLabel}>Function:</Text>
+                          <Text style={styles.botDetailValue}>{bot.function}</Text>
+                        </View>
+                      )}
+                      {bot.type && (
+                        <View style={styles.botDetailItem}>
+                          <Text style={styles.botDetailLabel}>Type:</Text>
+                          <Text style={styles.botDetailValue}>{bot.type}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.botDetails}>
                       <View style={styles.botDetailItem}>
                         <Text style={styles.botDetailLabel}>Frequency:</Text>
                         <Text style={styles.botDetailValue}>{bot.frequency}</Text>
                       </View>
+                      {bot.frequency === "Weekly" && bot.day_of_week && (
+                        <View style={styles.botDetailItem}>
+                          <Text style={styles.botDetailLabel}>Day:</Text>
+                          <Text style={styles.botDetailValue}>{bot.day_of_week}</Text>
+                        </View>
+                      )}
+                      {bot.frequency === "Monthly" && bot.day_of_month && (
+                        <View style={styles.botDetailItem}>
+                          <Text style={styles.botDetailLabel}>Day:</Text>
+                          <Text style={styles.botDetailValue}>{bot.day_of_month}</Text>
+                        </View>
+                      )}
                       <View style={styles.botDetailItem}>
                         <Text style={styles.botDetailLabel}>Time:</Text>
                         <Text style={styles.botDetailValue}>{formatTime(bot.time)}</Text>

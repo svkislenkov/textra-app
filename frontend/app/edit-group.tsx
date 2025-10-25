@@ -9,12 +9,23 @@ interface Member {
   id: string;
   name: string;
   phone_number: string;
+  user_id?: string | null;
+}
+
+interface Bot {
+  id: string;
+  name: string;
+  description: string;
+  function?: string;
+  type?: string;
+  frequency: string;
 }
 
 export default function EditGroupScreen() {
   const { id } = useLocalSearchParams();
   const [groupName, setGroupName] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -29,6 +40,33 @@ export default function EditGroupScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingContacts, setLoadingContacts] = useState(false);
 
+  // Bot selection state
+  const [availableBots, setAvailableBots] = useState<Bot[]>([]);
+  const [assignedBots, setAssignedBots] = useState<Bot[]>([]);
+  const [showBotPicker, setShowBotPicker] = useState(false);
+
+  const formatPhoneNumber = (text: string) => {
+    // Remove all non-digit characters
+    const cleaned = text.replace(/\D/g, '');
+
+    // Limit to 10 digits
+    const limited = cleaned.substring(0, 10);
+
+    // Format as (XXX) XXX-XXXX
+    if (limited.length <= 3) {
+      return limited;
+    } else if (limited.length <= 6) {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+    } else {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+    }
+  };
+
+  const handleManualPhoneChange = (text: string) => {
+    const formatted = formatPhoneNumber(text);
+    setManualPhone(formatted);
+  };
+
   useEffect(() => {
     fetchGroup();
   }, [id]);
@@ -41,6 +79,12 @@ export default function EditGroupScreen() {
     }
 
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+
       // Fetch group details
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
@@ -58,7 +102,7 @@ export default function EditGroupScreen() {
         setGroupName(groupData.name);
       }
 
-      // Fetch group members
+      // Fetch group members (includes user_id field)
       const { data: membersData, error: membersError } = await supabase
         .from('group_members')
         .select('*')
@@ -69,12 +113,64 @@ export default function EditGroupScreen() {
       } else {
         setMembers(membersData || []);
       }
+
+      // Fetch assigned bots for this group
+      const { data: botGroupsData, error: botGroupsError } = await supabase
+        .from('bot_groups')
+        .select(`
+          bot_id,
+          bots (
+            id,
+            name,
+            description,
+            function,
+            type,
+            frequency
+          )
+        `)
+        .eq('group_id', id);
+
+      if (botGroupsError) {
+        console.error('Error fetching bot groups:', botGroupsError);
+      } else {
+        const bots = botGroupsData?.map((bg: any) => bg.bots).filter(Boolean) || [];
+        setAssignedBots(bots);
+      }
+
+      // Fetch all available bots
+      fetchAvailableBots();
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');
       console.error(error);
       router.back();
     } finally {
       setFetching(false);
+    }
+  }
+
+  async function fetchAvailableBots() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error("No user found");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("bots")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching bots:", error);
+        return;
+      }
+
+      setAvailableBots(data || []);
+    } catch (error) {
+      console.error("Error fetching bots:", error);
     }
   }
 
@@ -130,6 +226,7 @@ export default function EditGroupScreen() {
       id: 'temp_' + Date.now().toString(),
       name,
       phone_number: phoneNumber,
+      user_id: null,
     };
 
     setMembers([...members, newMember]);
@@ -153,6 +250,7 @@ export default function EditGroupScreen() {
       id: 'temp_' + Date.now().toString(),
       name: manualName.trim(),
       phone_number: manualPhone.trim(),
+      user_id: null,
     };
 
     setMembers([...members, newMember]);
@@ -162,7 +260,65 @@ export default function EditGroupScreen() {
   }
 
   function removeMember(memberId: string) {
+    // Check if this member is the current user
+    const memberToRemove = members.find(m => m.id === memberId);
+    if (memberToRemove?.user_id === currentUserId) {
+      Alert.alert('Cannot Remove Yourself', 'You cannot remove yourself from a group you created.');
+      return;
+    }
     setMembers(members.filter(m => m.id !== memberId));
+  }
+
+  async function addBotToGroup(botId: string) {
+    // Check if bot is already assigned
+    if (assignedBots.some(b => b.id === botId)) {
+      Alert.alert('Already Assigned', 'This bot is already assigned to this group.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('bot_groups')
+        .insert({
+          bot_id: botId,
+          group_id: id,
+          current_member_index: 0,
+        });
+
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      const bot = availableBots.find(b => b.id === botId);
+      if (bot) {
+        setAssignedBots([...assignedBots, bot]);
+        setShowBotPicker(false);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to assign bot to group');
+      console.error(error);
+    }
+  }
+
+  async function removeBotFromGroup(botId: string) {
+    try {
+      const { error } = await supabase
+        .from('bot_groups')
+        .delete()
+        .eq('bot_id', botId)
+        .eq('group_id', id);
+
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      setAssignedBots(assignedBots.filter(b => b.id !== botId));
+    } catch (error) {
+      Alert.alert('Error', 'Failed to remove bot from group');
+      console.error(error);
+    }
   }
 
   async function handleUpdateGroup() {
@@ -203,11 +359,12 @@ export default function EditGroupScreen() {
         console.error('Error deleting members:', deleteError);
       }
 
-      // Add all current members
+      // Add all current members (preserving user_id if it exists)
       const memberInserts = members.map(member => ({
         group_id: id,
         name: member.name,
         phone_number: member.phone_number,
+        user_id: member.user_id || null,
       }));
 
       const { error: membersError } = await supabase
@@ -372,8 +529,8 @@ export default function EditGroupScreen() {
                   <TextInput
                     style={[styles.input, styles.inputSpacing]}
                     value={manualPhone}
-                    onChangeText={setManualPhone}
-                    placeholder="Phone Number"
+                    onChangeText={handleManualPhoneChange}
+                    placeholder="(555) 555-5555"
                     placeholderTextColor="rgba(255, 255, 255, 0.5)"
                     keyboardType="phone-pad"
                   />
@@ -411,6 +568,51 @@ export default function EditGroupScreen() {
               {members.length === 0 && (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateText}>No members added yet</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Bots Section */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>Bots ({assignedBots.length})</Text>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => setShowBotPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.addButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Assigned Bots List */}
+              {assignedBots.length > 0 && (
+                <View style={styles.botsListContainer}>
+                  {assignedBots.map((bot) => (
+                    <View key={bot.id} style={styles.botCard}>
+                      <View style={styles.botInfo}>
+                        <Text style={styles.botName}>{bot.name}</Text>
+                        <Text style={styles.botDetails}>
+                          {bot.function && `${bot.function} - `}
+                          {bot.type && `${bot.type} - `}
+                          {bot.frequency}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.removeBotButton}
+                        onPress={() => removeBotFromGroup(bot.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.removeBotButtonText}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {assignedBots.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No bots assigned yet</Text>
                 </View>
               )}
             </View>
@@ -496,6 +698,54 @@ export default function EditGroupScreen() {
             </SafeAreaView>
           </LinearGradient>
         </Modal>
+
+        {/* Bot Picker Modal */}
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={showBotPicker}
+          onRequestClose={() => setShowBotPicker(false)}
+        >
+          <LinearGradient
+            colors={["#667eea", "#764ba2", "#f093fb"]}
+            style={styles.container}
+          >
+            <SafeAreaView style={styles.safeArea}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select a Bot</Text>
+                <TouchableOpacity onPress={() => setShowBotPicker(false)}>
+                  <Text style={styles.modalCloseText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+
+              <FlatList
+                data={availableBots}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.contactItem}
+                    onPress={() => addBotToGroup(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View>
+                      <Text style={styles.contactName}>{item.name}</Text>
+                      <Text style={styles.contactPhone}>
+                        {item.function && `${item.function} - `}
+                        {item.type && `${item.type} - `}
+                        {item.frequency}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No bots available</Text>
+                  </View>
+                }
+              />
+            </SafeAreaView>
+          </LinearGradient>
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -567,11 +817,38 @@ const styles = StyleSheet.create({
   sectionContainer: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   sectionLabel: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#ffffff",
-    marginBottom: 12,
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  addButtonText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#764ba2",
+    lineHeight: 24,
   },
   addButtonsContainer: {
     flexDirection: "row",
@@ -591,6 +868,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
   },
   manualAddContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.1)",
@@ -750,5 +1028,46 @@ const styles = StyleSheet.create({
   contactPhone: {
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.7)",
+  },
+  botsListContainer: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  botCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  botInfo: {
+    flex: 1,
+  },
+  botName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  botDetails: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  removeBotButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 59, 48, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  removeBotButtonText: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "bold",
+    lineHeight: 20,
   },
 });
