@@ -1,44 +1,55 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, Alert, ScrollView, Keyboard } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 
-export default function LoginScreen() {
+export default function SignUpScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.replace("/home");
-      }
-    });
-  }, []);
+  async function handleSignUp() {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
 
-  async function handleLogin() {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Please enter both email and password");
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters long");
       return;
     }
 
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: password,
       });
 
       if (error) {
-        Alert.alert("Login Error", error.message);
+        Alert.alert("Sign Up Error", error.message);
         return;
       }
 
-      if (data.session) {
-        router.replace("/home");
+      if (data.user) {
+        Alert.alert(
+          "Success",
+          "Account created successfully! You can now sign in.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace("/"),
+            },
+          ]
+        );
       }
     } catch (error) {
       Alert.alert("Error", "An unexpected error occurred");
@@ -73,16 +84,15 @@ export default function LoginScreen() {
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.logoText}>Textra</Text>
             </View>
 
             {/* Welcome Text */}
             <View style={styles.welcomeContainer}>
-              <Text style={styles.welcomeTitle}>Welcome Back</Text>
-              <Text style={styles.welcomeSubtitle}>Sign in to continue</Text>
+              <Text style={styles.welcomeTitle}>Create Account</Text>
+              <Text style={styles.welcomeSubtitle}>Sign up to get started</Text>
             </View>
 
-            {/* Login Form */}
+            {/* Sign Up Form */}
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
@@ -114,27 +124,38 @@ export default function LoginScreen() {
                 />
               </View>
 
-              <TouchableOpacity style={styles.forgotPassword} disabled={loading}>
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-              </TouchableOpacity>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Confirm Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Confirm your password"
+                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+              </View>
 
-              {/* Login Button */}
+              {/* Sign Up Button */}
               <TouchableOpacity
-                style={[styles.loginButton, loading && styles.buttonDisabled]}
-                onPress={handleLogin}
+                style={[styles.signUpButton, loading && styles.buttonDisabled]}
+                onPress={handleSignUp}
                 activeOpacity={0.8}
                 disabled={loading}
               >
-                <Text style={styles.loginButtonText}>
-                  {loading ? "Signing In..." : "Sign In"}
+                <Text style={styles.signUpButtonText}>
+                  {loading ? "Creating Account..." : "Sign Up"}
                 </Text>
               </TouchableOpacity>
 
-              {/* Sign Up Link */}
-              <View style={styles.signupContainer}>
-                <Text style={styles.signupText}>Don't have an account? </Text>
-                <TouchableOpacity onPress={() => router.push("/signup")} disabled={loading}>
-                  <Text style={styles.signupLink}>Sign Up</Text>
+              {/* Sign In Link */}
+              <View style={styles.signInContainer}>
+                <Text style={styles.signInText}>Already have an account? </Text>
+                <TouchableOpacity onPress={() => router.replace("/")} disabled={loading}>
+                  <Text style={styles.signInLink}>Sign In</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -175,13 +196,6 @@ const styles = StyleSheet.create({
     width: 280,
     height: 280,
   },
-  logoText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#ffffff",
-    letterSpacing: 2,
-    marginTop: 20,
-  },
   welcomeContainer: {
     alignItems: "center",
     marginBottom: 40,
@@ -217,20 +231,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.3)",
   },
-  forgotPassword: {
-    alignSelf: "flex-end",
-    marginBottom: 24,
-  },
-  forgotPasswordText: {
-    color: "rgba(255, 255, 255, 0.9)",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  loginButton: {
+  signUpButton: {
     backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 18,
     alignItems: "center",
+    marginTop: 4,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -243,21 +249,21 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
-  loginButtonText: {
+  signUpButtonText: {
     color: "#764ba2",
     fontSize: 18,
     fontWeight: "bold",
   },
-  signupContainer: {
+  signInContainer: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 24,
   },
-  signupText: {
+  signInText: {
     color: "rgba(255, 255, 255, 0.8)",
     fontSize: 14,
   },
-  signupLink: {
+  signInLink: {
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "bold",
