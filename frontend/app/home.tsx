@@ -162,10 +162,10 @@ export default function HomeScreen() {
             <Text style={styles.logoText}>TEXTRA</Text>
           </View>
 
-          {/* Textra Bots Section */}
+          {/* Textra Functions Section */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Bots</Text>
+              <Text style={styles.sectionTitle}>Functions</Text>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => router.push("/create-bot")}
@@ -176,7 +176,7 @@ export default function HomeScreen() {
             </View>
             {bots.length === 0 ? (
               <View style={styles.sectionContent}>
-                <Text style={styles.sectionPlaceholder}>No bots yet</Text>
+                <Text style={styles.sectionPlaceholder}>No functions yet</Text>
               </View>
             ) : (
               <View style={styles.botsListContainer}>

@@ -54,7 +54,7 @@ export default function CreateBotScreen() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        Alert.alert("Error", "You must be logged in to create a bot");
+        Alert.alert("Error", "You must be logged in to create a function");
         return;
       }
 
@@ -75,7 +75,7 @@ export default function CreateBotScreen() {
         return;
       }
 
-      Alert.alert("Success", "Bot created successfully!", [
+      Alert.alert("Success", "Function created successfully!", [
         {
           text: "OK",
           onPress: () => router.back(),
@@ -107,7 +107,7 @@ export default function CreateBotScreen() {
             >
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Create Bot</Text>
+            <Text style={styles.title}>Create Function</Text>
           </View>
 
           <View style={styles.formContainer}>
@@ -117,7 +117,7 @@ export default function CreateBotScreen() {
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="Enter bot name"
+                placeholder="Enter function name"
                 placeholderTextColor="rgba(255, 255, 255, 0.5)"
                 editable={!loading}
               />
@@ -129,7 +129,7 @@ export default function CreateBotScreen() {
                 style={[styles.input, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Enter bot description"
+                placeholder="Enter function description"
                 placeholderTextColor="rgba(255, 255, 255, 0.5)"
                 multiline
                 numberOfLines={3}
@@ -314,7 +314,7 @@ export default function CreateBotScreen() {
               disabled={loading}
             >
               <Text style={styles.createButtonText}>
-                {loading ? "Creating..." : "Create Bot"}
+                {loading ? "Creating..." : "Create Function"}
               </Text>
             </TouchableOpacity>
           </View>

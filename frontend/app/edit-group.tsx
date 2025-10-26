@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, S
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { showFunctionAddedNotification } from "../lib/notifications";
 import * as Contacts from 'expo-contacts';
 
 interface Member {
@@ -376,6 +377,11 @@ export default function EditGroupScreen() {
         return;
       }
 
+      // Show notification if there are assigned bots/functions
+      if (assignedBots.length > 0) {
+        await showFunctionAddedNotification();
+      }
+
       Alert.alert('Success', 'Group updated successfully!', [
         {
           text: 'OK',
@@ -572,10 +578,10 @@ export default function EditGroupScreen() {
               )}
             </View>
 
-            {/* Bots Section */}
+            {/* Functions Section */}
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionLabel}>Bots ({assignedBots.length})</Text>
+                <Text style={styles.sectionLabel}>Functions ({assignedBots.length})</Text>
                 <TouchableOpacity
                   style={styles.addButton}
                   onPress={() => setShowBotPicker(true)}
@@ -612,7 +618,7 @@ export default function EditGroupScreen() {
 
               {assignedBots.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No bots assigned yet</Text>
+                  <Text style={styles.emptyStateText}>No functions assigned yet</Text>
                 </View>
               )}
             </View>
@@ -699,7 +705,7 @@ export default function EditGroupScreen() {
           </LinearGradient>
         </Modal>
 
-        {/* Bot Picker Modal */}
+        {/* Function Picker Modal */}
         <Modal
           animationType="slide"
           transparent={false}
@@ -712,7 +718,7 @@ export default function EditGroupScreen() {
           >
             <SafeAreaView style={styles.safeArea}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select a Bot</Text>
+                <Text style={styles.modalTitle}>Select a Function</Text>
                 <TouchableOpacity onPress={() => setShowBotPicker(false)}>
                   <Text style={styles.modalCloseText}>Close</Text>
                 </TouchableOpacity>
@@ -739,7 +745,7 @@ export default function EditGroupScreen() {
                 )}
                 ListEmptyComponent={
                   <View style={styles.emptyState}>
-                    <Text style={styles.emptyStateText}>No bots available</Text>
+                    <Text style={styles.emptyStateText}>No functions available</Text>
                   </View>
                 }
               />
@@ -821,11 +827,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   sectionLabel: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontWeight: "600",
     color: "#ffffff",
   },
   addButton: {
@@ -853,6 +859,7 @@ const styles = StyleSheet.create({
   addButtonsContainer: {
     flexDirection: "row",
     gap: 12,
+    marginTop: 8,
     marginBottom: 16,
   },
   actionButton: {

@@ -110,7 +110,7 @@ export default function EditBotScreen() {
         return;
       }
 
-      Alert.alert("Success", "Bot updated successfully!", [
+      Alert.alert("Success", "Function updated successfully!", [
         {
           text: "OK",
           onPress: () => router.back(),
@@ -126,8 +126,8 @@ export default function EditBotScreen() {
 
   async function handleDeleteBot() {
     Alert.alert(
-      "Delete Bot",
-      "Are you sure you want to delete this bot?",
+      "Delete Function",
+      "Are you sure you want to delete this function?",
       [
         {
           text: "Cancel",
@@ -149,7 +149,7 @@ export default function EditBotScreen() {
                 return;
               }
 
-              Alert.alert("Success", "Bot deleted successfully!", [
+              Alert.alert("Success", "Function deleted successfully!", [
                 {
                   text: "OK",
                   onPress: () => router.back(),
@@ -175,7 +175,7 @@ export default function EditBotScreen() {
       >
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading bot...</Text>
+            <Text style={styles.loadingText}>Loading function...</Text>
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -200,7 +200,7 @@ export default function EditBotScreen() {
             >
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Edit Bot</Text>
+            <Text style={styles.title}>Edit Function</Text>
           </View>
 
           <View style={styles.formContainer}>
@@ -210,7 +210,7 @@ export default function EditBotScreen() {
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="Enter bot name"
+                placeholder="Enter function name"
                 placeholderTextColor="rgba(255, 255, 255, 0.5)"
                 editable={!loading}
               />
@@ -222,7 +222,7 @@ export default function EditBotScreen() {
                 style={[styles.input, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Enter bot description"
+                placeholder="Enter function description"
                 placeholderTextColor="rgba(255, 255, 255, 0.5)"
                 multiline
                 numberOfLines={3}
@@ -407,7 +407,7 @@ export default function EditBotScreen() {
               disabled={loading}
             >
               <Text style={styles.updateButtonText}>
-                {loading ? "Updating..." : "Update Bot"}
+                {loading ? "Updating..." : "Update Function"}
               </Text>
             </TouchableOpacity>
 
@@ -417,7 +417,7 @@ export default function EditBotScreen() {
               activeOpacity={0.8}
               disabled={loading}
             >
-              <Text style={styles.deleteButtonText}>Delete Bot</Text>
+              <Text style={styles.deleteButtonText}>Delete Function</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
