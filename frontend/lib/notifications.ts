@@ -1,14 +1,9 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-// Configure notification handler
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// NOTE: Removed setNotificationHandler as it was interfering with scheduled notifications
+// The handler was intercepting scheduled notifications and causing them to fire immediately
+// iOS will handle notification display natively at the scheduled time
 
 /**
  * Request notification permissions from the user

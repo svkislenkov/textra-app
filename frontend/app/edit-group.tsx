@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { showFunctionAddedNotification } from "../lib/notifications";
+import { cancelNotificationsForBot, rescheduleNotificationsForGroup } from "../lib/notificationScheduler";
 import * as Contacts from 'expo-contacts';
 
 interface Member {
@@ -295,6 +296,9 @@ export default function EditGroupScreen() {
       if (bot) {
         setAssignedBots([...assignedBots, bot]);
         setShowBotPicker(false);
+
+        // Note: Notifications will be scheduled when "Update Group" is clicked
+        // This prevents duplicate scheduling
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to assign bot to group');
@@ -304,6 +308,9 @@ export default function EditGroupScreen() {
 
   async function removeBotFromGroup(botId: string) {
     try {
+      // Cancel notifications first
+      await cancelNotificationsForBot(botId, id as string);
+
       const { error } = await supabase
         .from('bot_groups')
         .delete()
@@ -375,6 +382,14 @@ export default function EditGroupScreen() {
       if (membersError) {
         Alert.alert('Error', membersError.message);
         return;
+      }
+
+      // Reschedule all notifications for this group (in case members or order changed)
+      if (assignedBots.length > 0) {
+        const rescheduled = await rescheduleNotificationsForGroup(id as string);
+        if (!rescheduled) {
+          console.warn('Failed to reschedule notifications');
+        }
       }
 
       // Show notification if there are assigned bots/functions

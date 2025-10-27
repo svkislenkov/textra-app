@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { showFunctionAddedNotification } from "../lib/notifications";
+import { scheduleNotificationsForBot } from "../lib/notificationScheduler";
 import * as Contacts from 'expo-contacts';
 
 interface Member {
@@ -300,6 +301,14 @@ export default function CreateGroupScreen() {
         if (botsError) {
           Alert.alert('Error', botsError.message);
           return;
+        }
+
+        // Schedule notifications for each bot
+        for (const bot of selectedBots) {
+          const scheduled = await scheduleNotificationsForBot(bot.id, groupData.id);
+          if (!scheduled) {
+            console.warn(`Failed to schedule notifications for bot ${bot.name}`);
+          }
         }
 
         // Show notification after successfully adding bots
