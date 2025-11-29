@@ -31,12 +31,7 @@ export default function ProfileSetupScreen() {
     setPhoneNumber(formatted);
   };
 
-  async function handleSaveProfile() {
-    if (!name.trim() || !phoneNumber.trim()) {
-      Alert.alert("Error", "Please enter both name and phone number");
-      return;
-    }
-
+  async function saveProfileData() {
     setLoading(true);
 
     try {
@@ -97,6 +92,46 @@ export default function ProfileSetupScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSaveProfile() {
+    if (!name.trim() || !phoneNumber.trim()) {
+      Alert.alert("Error", "Please enter both name and phone number");
+      return;
+    }
+
+    // Check if this is a new profile (user hasn't provided phone number before)
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: existingProfile } = await supabase
+        .from("user_profiles")
+        .select("phone_number")
+        .eq("user_id", user.id)
+        .single();
+
+      // Show SMS consent for new users or users without a phone number
+      if (!existingProfile || !existingProfile.phone_number) {
+        Alert.alert(
+          "SMS Consent",
+          "By providing your phone number, you agree to receive SMS reminders/notifications from Textra. Message frequency varies based on the reminders you create. Message and data rates may apply. Reply STOP to opt-out. Reply HELP for help.",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+            {
+              text: "I Agree",
+              onPress: saveProfileData,
+            },
+          ]
+        );
+        return;
+      }
+    }
+
+    // If user already has a phone number, just save without showing consent
+    await saveProfileData();
   }
 
   return (

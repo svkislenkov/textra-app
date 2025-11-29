@@ -16,11 +16,12 @@ export default function EditBotScreen() {
   const [dayOfMonth, setDayOfMonth] = useState(1);
   const [time, setTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [messageTemplate, setMessageTemplate] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
   const functions = ["Chore Rotation"];
-  const choreTypes = ["Take out trash", "Clean kitchen", "Clean bathroom"];
+  const choreTypes = ["Take out trash", "Clean kitchen", "Clean bathroom", "Custom Type"];
   const frequencies = ["Daily", "Weekly", "Monthly"];
   const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const daysOfMonth = Array.from({ length: 28 }, (_, i) => i + 1);
@@ -54,6 +55,7 @@ export default function EditBotScreen() {
         setDescription(data.description);
         setFunctionType(data.function || "Chore Rotation");
         setChoreType(data.type || "Take out trash");
+        setMessageTemplate(data.message_template || "");
         setFrequency(data.frequency);
         setDayOfWeek(data.day_of_week || "Monday");
         setDayOfMonth(data.day_of_month || 1);
@@ -87,6 +89,11 @@ export default function EditBotScreen() {
       return;
     }
 
+    if (choreType === "Custom Type" && !messageTemplate.trim()) {
+      Alert.alert("Error", "Please provide a message template for Custom Type");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -97,6 +104,7 @@ export default function EditBotScreen() {
           description: description.trim(),
           function: functionType,
           type: choreType,
+          message_template: choreType === "Custom Type" ? messageTemplate.trim() : null,
           frequency: frequency,
           day_of_week: frequency === "Weekly" ? dayOfWeek : null,
           day_of_month: frequency === "Monthly" ? dayOfMonth : null,
@@ -259,12 +267,12 @@ export default function EditBotScreen() {
             {functionType === "Chore Rotation" && (
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Type</Text>
-                <View style={styles.frequencyContainer}>
+                <View style={styles.gridContainer}>
                   {choreTypes.map((type) => (
                     <TouchableOpacity
                       key={type}
                       style={[
-                        styles.frequencyButton,
+                        styles.gridButton,
                         choreType === type && styles.frequencyButtonActive,
                       ]}
                       onPress={() => setChoreType(type)}
@@ -281,6 +289,22 @@ export default function EditBotScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+            )}
+
+            {choreType === "Custom Type" && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Message Template</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={messageTemplate}
+                  onChangeText={setMessageTemplate}
+                  placeholder="Enter something like: 'vacuum floors!'"
+                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  multiline
+                  numberOfLines={3}
+                  editable={!loading}
+                />
               </View>
             )}
 
@@ -513,6 +537,20 @@ const styles = StyleSheet.create({
   },
   frequencyButtonTextActive: {
     color: "#764ba2",
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  gridButton: {
+    width: "48%",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   dayButton: {
     minWidth: 50,

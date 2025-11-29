@@ -11,6 +11,7 @@ interface Bot {
   description: string;
   function?: string;
   type?: string;
+  message_template?: string;
   frequency: string;
   day_of_week?: string;
   day_of_month?: number;
@@ -138,14 +139,34 @@ export default function HomeScreen() {
     return email.charAt(0).toUpperCase();
   };
 
+  const showHelpMessage = () => {
+    // ⚠️ MODIFY THE HELP MESSAGE BELOW ⚠️
+    const helpMessage = "First, create a function you want your group to be able to use. Next, create a group and apply that function to it. Notifications to that group will then be sent out based on your function specifications.";
+    // ⚠️ END OF MESSAGE TO MODIFY ⚠️
+
+    Alert.alert("How to Use Textra", helpMessage);
+  };
+
   return (
     <LinearGradient
       colors={["#667eea", "#764ba2", "#f093fb"]}
       style={styles.container}
     >
       <SafeAreaView style={styles.safeArea}>
-        {/* User Avatar in Top Right */}
+        {/* Header with Info and Settings */}
         <View style={styles.header}>
+          {/* Info Button in Top Left */}
+          <TouchableOpacity
+            style={styles.infoButton}
+            onPress={showHelpMessage}
+            activeOpacity={0.8}
+          >
+            <View style={styles.infoCircle}>
+              <Text style={styles.infoText}>i</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* User Avatar in Top Right */}
           <TouchableOpacity
             style={styles.avatarButton}
             onPress={() => router.push("/settings")}
@@ -288,10 +309,37 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 10,
+  },
+  infoButton: {
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  infoCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#ffffff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+  },
+  infoText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#764ba2",
+    fontStyle: "italic",
   },
   avatarButton: {
     shadowColor: "#000",
