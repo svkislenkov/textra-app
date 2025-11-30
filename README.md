@@ -1,29 +1,31 @@
-Textra is a small student project that sends user-requested reminder and notification messages.
-All messages are fully opt-in, low volume, and non-marketing.
+Opt-In and Messaging Policy
 
-How It Works
+How users opt in:
+Users download the Textra app and manually enter their phone number in the “Phone Number” field on the 'Set Up Your Profile' page. When they submit their number, the app displays a confirmation screen stating that they are opting in to receive automated reminder/notification SMS messages that they explicitly configure inside the app.
 
-A user provides their phone number through the Textra web form.
-That action serves as explicit opt-in consent.
-The app sends only the reminders or notifications the user configured.
-Users can opt out anytime by replying STOP.
-Users can reply HELP for help.
+Consent screen text shown in the app:
+“By providing your phone number, you agree to receive SMS reminders/notifications from Textra. Message frequency varies based on the reminders you create. Message and data rates may apply. Reply STOP to opt-out. Reply HELP for help.”
 
-Messaging Policy
+Brand identification:
+Textra (student project at University of Michigan).
 
-No marketing, promotional, political, or unsolicited content.
-Message frequency varies based on the reminders the user sets.
-All data is used only to send the messages the user requested.
-Phone numbers are never sold or shared.
-Data deletion is available upon request.
+Message frequency:
+Varies based on user-created reminders. Only user-requested messages are sent.
 
+Required disclosures:
+– “Message and data rates may apply.”
+– Opt-out: Reply STOP.
+– Help: Reply HELP.
 
-Project Links
+Where the opt-in is collected:
+Inside the Textra mobile/web app (phone number entry).
+This is not a public webpage, so a public screenshot of the opt-in screen is provided at:
+https://svkislenkov.github.io/textra-app/screenshots/opt-in.png
 
-Privacy Policy: https://svkislenkov.github.io/textra-app/privacy.html
+Policies:
+Privacy Policy: https://svkislenkov.github.io/textra-app/privacy
 
-Terms and Conditions: https://svkislenkov.github.io/textra-app/terms.html
+Terms: https://svkislenkov.github.io/textra-app/terms
 
-Contact
-
-For questions or data deletion requests: skis@umich.edu
+No marketing:
+This campaign sends only user-requested reminders and notifications. No promotional or marketing content.
