@@ -84,8 +84,15 @@ export async function sendFunctionAddedSMS(
 ): Promise<void> {
   try {
     const base = process.env.EXPO_PUBLIC_FUNCS_URL;
+    const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
     if (!base) {
       console.error('EXPO_PUBLIC_FUNCS_URL not configured');
+      return;
+    }
+
+    if (!anonKey) {
+      console.error('EXPO_PUBLIC_SUPABASE_ANON_KEY not configured');
       return;
     }
 
@@ -93,6 +100,8 @@ export async function sendFunctionAddedSMS(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
       },
       body: JSON.stringify({
         groupId,

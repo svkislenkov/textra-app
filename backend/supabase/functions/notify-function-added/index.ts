@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
 
       // Send message (fans out to all participants)
       const msgRes = await tw(
-        `Conversations/${conversationSid}/Messages`,
+        `Services/${IS}/Conversations/${conversationSid}/Messages`,
         "POST",
         new URLSearchParams({ Body: messageBody })
       );
@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
       messageSid = msgData.sid;
 
       // Delete temporary conversation (cleanup)
-      const delRes = await tw(`Conversations/${conversationSid}`, "DELETE");
+      const delRes = await tw(`Services/${IS}/Conversations/${conversationSid}`, "DELETE");
       if (!delRes.ok) {
         // Log warning but don't fail
         console.warn(
