@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, S
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../lib/supabase";
-import { showFunctionAddedNotification } from "../lib/notifications";
+import { showFunctionAddedNotification, sendFunctionAddedSMS } from "../lib/notifications";
 import * as Contacts from 'expo-contacts';
 
 interface Member {
@@ -295,6 +295,17 @@ export default function EditGroupScreen() {
       if (bot) {
         setAssignedBots([...assignedBots, bot]);
         setShowBotPicker(false);
+
+        // Show local notification
+        await showFunctionAddedNotification(bot.name);
+
+        // Send SMS notifications to group members
+        try {
+          await sendFunctionAddedSMS(id as string, bot.name, bot.frequency);
+        } catch (smsError) {
+          console.error('Failed to send SMS notifications:', smsError);
+          // Non-blocking: continue even if SMS fails
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to assign bot to group');

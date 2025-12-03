@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, S
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
-import { showFunctionAddedNotification } from "../lib/notifications";
+import { showFunctionAddedNotification, sendFunctionAddedSMS } from "../lib/notifications";
 import * as Contacts from 'expo-contacts';
 
 interface Member {
@@ -304,6 +304,16 @@ export default function CreateGroupScreen() {
 
         // Show notification after successfully adding bots
         await showFunctionAddedNotification();
+
+        // Send SMS notifications to group members
+        try {
+          for (const bot of selectedBots) {
+            await sendFunctionAddedSMS(groupData.id, bot.name, bot.frequency);
+          }
+        } catch (smsError) {
+          console.error('Failed to send SMS notifications:', smsError);
+          // Non-blocking: continue even if SMS fails
+        }
       }
 
       Alert.alert('Success', 'Group created successfully!', [
