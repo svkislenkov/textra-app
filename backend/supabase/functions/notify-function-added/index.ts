@@ -13,13 +13,27 @@ const TOK = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
 const IS = Deno.env.get("TWILIO_CONVERSATIONS_SERVICE_SID") || "";
 const SHARED_NUM = Deno.env.get("TWILIO_SHARED_NUMBER_E164") || "+15555555555";
 
-// Helper: Twilio API request
-const tw = (path: string, method: "GET" | "POST" | "DELETE", body?: URLSearchParams) =>
-  fetch(`https://conversations.twilio.com/v1/${path}`, {
-    method,
-    headers: { Authorization: "Basic " + btoa(`${ACC}:${TOK}`) },
-    body,
+// Helper: Send group MMS
+async function sendGroupMMS(toPhones: string[], body: string) {
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${ACC}/Messages.json`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + btoa(`${ACC}:${TOK}`),
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      From: SHARED_NUM,
+      To: toPhones.join(","), // Multiple recipients = group MMS
+      Body: body,
+    }),
   });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to send group MMS: ${errorText}`);
+  }
+  return res.json();
+}
 
 // Helper: Normalize phone number to E.164 format
 function normalizePhoneNumber(phone: string): string | null {
@@ -130,94 +144,43 @@ Deno.serve(async (req) => {
   const detailsText = functionDetails ? ` (${functionDetails})` : "";
   const messageBody = `Welcome to Textra!\n\nThe function "${functionName}"${detailsText} has been added to your group "${group.name}".\n\nYou'll now receive SMS updates from this group.`;
 
-  let conversationSid = "";
+  // Collect phone numbers for group MMS
+  const phoneNumbers = normalizedMembers.map(m => m.phoneE164);
+
+  if (phoneNumbers.length > 10) {
+    console.warn(`Group ${groupId} has ${phoneNumbers.length} members, exceeding MMS group limit of 10`);
+  }
+
   let messageSid = "";
 
   try {
+    console.log(`=== TWILIO CONFIGURATION ===`);
+    console.log(`MOCK_MODE: ${MOCK_MODE}`);
+    console.log(`Account SID present: ${!!Deno.env.get("TWILIO_ACCOUNT_SID")}`);
+    console.log(`Auth Token present: ${!!Deno.env.get("TWILIO_AUTH_TOKEN")}`);
+    console.log(`Phone Number present: ${!!Deno.env.get("TWILIO_SHARED_NUMBER_E164")}`);
+    console.log(`Normalized members: ${normalizedMembers.length}`);
+    for (const m of normalizedMembers) {
+      console.log(`  - ${m.name}: ${m.phoneE164}`);
+    }
+
     if (MOCK_MODE) {
-      // Mock mode: Generate fake SIDs and log
-      conversationSid = `CH${crypto.randomUUID().replace(/-/g, "").substring(0, 32)}`;
-      messageSid = `IM${crypto.randomUUID().replace(/-/g, "").substring(0, 32)}`;
-
-      console.log(`[MOCK MODE] Would create temporary conversation: ${conversationSid}`);
-      console.log(
-        `[MOCK MODE] Would add ${normalizedMembers.length} participants:`
-      );
-      for (const m of normalizedMembers) {
-        console.log(`[MOCK MODE]   - ${m.name} (${m.phoneE164})`);
-      }
-      console.log(`[MOCK MODE] Would send message:`);
-      console.log(messageBody);
-      console.log(`[MOCK MODE] Would delete conversation: ${conversationSid}`);
+      // Mock mode: Generate fake SID and log
+      messageSid = `MM${crypto.randomUUID().replace(/-/g, "").substring(0, 32)}`;
+      console.log(`[MOCK MODE] Would send group MMS to: ${phoneNumbers.join(", ")}`);
+      console.log(`[MOCK MODE] Message: ${messageBody}`);
     } else {
-      // Real mode: Create temporary conversation
-      const createRes = await tw(
-        `Services/${IS}/Conversations`,
-        "POST",
-        new URLSearchParams({
-          UniqueName: `temp-notify-${crypto.randomUUID()}`,
-          "Timers.Closed": "PT1H", // Auto-close after 1 hour
-        })
-      );
-
-      if (!createRes.ok) {
-        throw new Error(
-          `Failed to create conversation: ${await createRes.text()}`
-        );
-      }
-
-      const convData = await createRes.json();
-      conversationSid = convData.sid;
-
-      // Add SMS participants
-      for (const m of normalizedMembers) {
-        const addRes = await tw(
-          `Services/${IS}/Conversations/${conversationSid}/Participants`,
-          "POST",
-          new URLSearchParams({
-            "MessagingBinding.Address": m.phoneE164,
-            "MessagingBinding.ProxyAddress": SHARED_NUM,
-          })
-        );
-
-        if (!addRes.ok) {
-          const errorText = await addRes.text();
-          // Log error but continue with other members
-          console.error(
-            `Failed to add participant ${m.name} (${m.phoneE164}): ${errorText}`
-          );
-        }
-      }
-
-      // Send message (fans out to all participants)
-      const msgRes = await tw(
-        `Services/${IS}/Conversations/${conversationSid}/Messages`,
-        "POST",
-        new URLSearchParams({ Body: messageBody })
-      );
-
-      if (!msgRes.ok) {
-        throw new Error(`Failed to send message: ${await msgRes.text()}`);
-      }
-
-      const msgData = await msgRes.json();
-      messageSid = msgData.sid;
-
-      // Delete temporary conversation (cleanup)
-      const delRes = await tw(`Services/${IS}/Conversations/${conversationSid}`, "DELETE");
-      if (!delRes.ok) {
-        // Log warning but don't fail
-        console.warn(
-          `Failed to delete temporary conversation ${conversationSid}: ${await delRes.text()}`
-        );
-      }
+      console.log(`[REAL MODE] Sending group MMS...`);
+      const tw = await sendGroupMMS(phoneNumbers, messageBody);
+      messageSid = tw.sid;
+      console.log(`Sent group MMS to ${phoneNumbers.length} members: ${messageSid}`);
     }
 
     // Log to message_log
     await supabase.from("message_log").insert({
       bot_id: null, // Not associated with a bot
       twilio_sid: messageSid,
-      to_phone: `TEMP_CONV:${conversationSid}`,
+      to_phone: `GROUP:${phoneNumbers.join(",")}`,
       status: "sent",
       body: messageBody,
     });
