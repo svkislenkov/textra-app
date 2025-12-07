@@ -13,8 +13,8 @@ const TOK = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
 const IS = Deno.env.get("TWILIO_CONVERSATIONS_SERVICE_SID") || "";
 const SHARED_NUM = Deno.env.get("TWILIO_SHARED_NUMBER_E164") || "+15555555555";
 
-// Helper: Send group MMS
-async function sendGroupMMS(toPhones: string[], body: string) {
+// Helper: Send individual SMS
+async function sendIndividualSMS(toPhone: string, body: string) {
   const url = `https://api.twilio.com/2010-04-01/Accounts/${ACC}/Messages.json`;
   const res = await fetch(url, {
     method: "POST",
@@ -24,13 +24,13 @@ async function sendGroupMMS(toPhones: string[], body: string) {
     },
     body: new URLSearchParams({
       From: SHARED_NUM,
-      To: toPhones.join(","), // Multiple recipients = group MMS
+      To: toPhone,  // Single recipient
       Body: body,
     }),
   });
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Failed to send group MMS: ${errorText}`);
+    throw new Error(`Failed to send SMS: ${errorText}`);
   }
   return res.json();
 }
@@ -144,15 +144,7 @@ Deno.serve(async (req) => {
   const detailsText = functionDetails ? ` (${functionDetails})` : "";
   const messageBody = `Welcome to Textra!\n\nThe function "${functionName}"${detailsText} has been added to your group "${group.name}".\n\nYou'll now receive SMS updates from this group.`;
 
-  // Collect phone numbers for group MMS
-  const phoneNumbers = normalizedMembers.map(m => m.phoneE164);
-
-  if (phoneNumbers.length > 10) {
-    console.warn(`Group ${groupId} has ${phoneNumbers.length} members, exceeding MMS group limit of 10`);
-  }
-
-  let messageSid = "";
-
+  // Send individual SMS to each member
   try {
     console.log(`=== TWILIO CONFIGURATION ===`);
     console.log(`MOCK_MODE: ${MOCK_MODE}`);
@@ -164,26 +156,31 @@ Deno.serve(async (req) => {
       console.log(`  - ${m.name}: ${m.phoneE164}`);
     }
 
-    if (MOCK_MODE) {
-      // Mock mode: Generate fake SID and log
-      messageSid = `MM${crypto.randomUUID().replace(/-/g, "").substring(0, 32)}`;
-      console.log(`[MOCK MODE] Would send group MMS to: ${phoneNumbers.join(", ")}`);
-      console.log(`[MOCK MODE] Message: ${messageBody}`);
-    } else {
-      console.log(`[REAL MODE] Sending group MMS...`);
-      const tw = await sendGroupMMS(phoneNumbers, messageBody);
-      messageSid = tw.sid;
-      console.log(`Sent group MMS to ${phoneNumbers.length} members: ${messageSid}`);
-    }
+    const sentMessages = [];
 
-    // Log to message_log
-    await supabase.from("message_log").insert({
-      bot_id: null, // Not associated with a bot
-      twilio_sid: messageSid,
-      to_phone: `GROUP:${phoneNumbers.join(",")}`,
-      status: "sent",
-      body: messageBody,
-    });
+    for (const member of normalizedMembers) {
+      let messageSid = "";
+
+      if (MOCK_MODE) {
+        messageSid = `SM${crypto.randomUUID().replace(/-/g, "").substring(0, 32)}`;
+        console.log(`[MOCK MODE] Would send to ${member.name} (${member.phoneE164})`);
+      } else {
+        const tw = await sendIndividualSMS(member.phoneE164, messageBody);
+        messageSid = tw.sid;
+        console.log(`Sent to ${member.name}: ${messageSid}`);
+      }
+
+      // Log each individual send
+      await supabase.from("message_log").insert({
+        bot_id: null,
+        twilio_sid: messageSid,
+        to_phone: member.phoneE164,
+        status: "sent",
+        body: messageBody,
+      });
+
+      sentMessages.push(messageSid);
+    }
 
     return new Response(
       JSON.stringify({

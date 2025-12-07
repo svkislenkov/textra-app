@@ -6,11 +6,10 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-// Twilio (Programmable Messaging API for Group MMS)
+// Twilio Conversations API
 const MOCK_MODE = !Deno.env.get("TWILIO_ACCOUNT_SID");
 const ACC = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
 const TOK = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
-const SHARED_NUM = Deno.env.get("TWILIO_SHARED_NUMBER_E164") || "+15555555555";
 
 function toLocalHM(dateUTC: Date, tz: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -26,26 +25,24 @@ function toLocalDateISO(dateUTC: Date, tz: string) {
   }).format(dateUTC); // YYYY-MM-DD
 }
 
-async function sendGroupMMS(toPhones: string[], body: string) {
-  // Send MMS to multiple recipients (creates native group chat on phones)
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${ACC}/Messages.json`;
+async function sendToConversation(conversationSid: string, body: string) {
+  if (MOCK_MODE) {
+    console.log(`[MOCK MODE] Would send to conversation ${conversationSid}:`);
+    console.log(body);
+    return { sid: `IM${crypto.randomUUID().replace(/-/g, '').substring(0, 32)}` };
+  }
+
+  const url = `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Messages`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: "Basic " + btoa(`${ACC}:${TOK}`),
       "content-type": "application/x-www-form-urlencoded",
     },
-    body: new URLSearchParams({
-      From: SHARED_NUM,
-      To: toPhones.join(","), // Multiple recipients = group MMS
-      Body: body,
-    }),
+    body: new URLSearchParams({ Body: body }),
   });
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to send group MMS: ${errorText}`);
-  }
-  return res.json(); // { sid: 'MM...', ... }
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { sid: 'IM...', ... }
 }
 
 Deno.serve(async () => {
@@ -54,7 +51,7 @@ Deno.serve(async () => {
   // Load active bots
   const { data: bots, error } = await supabase
     .from("bots")
-    .select("id, name, timezone, schedule_time_local, last_sent_date")
+    .select("id, name, timezone, schedule_time_local, last_sent_date, conversation_sid")
     .eq("is_active", true);
   if (error) return new Response(error.message, { status: 500 });
 
@@ -67,6 +64,12 @@ Deno.serve(async () => {
 
   for (const bot of due) {
     const botId = bot.id;
+
+    // Skip bots without conversation_sid
+    if (!bot.conversation_sid) {
+      console.warn(`Bot ${botId} missing conversation_sid, skipping`);
+      continue;
+    }
 
     // Pull mapping
     const [{ data: members }, { data: chores }, { data: assigns }] = await Promise.all([
@@ -93,38 +96,15 @@ Deno.serve(async () => {
     const lines = mapping.map(x => `• ${x.member.display_name} — ${x.chore.title}`);
     const body = `${header}\n${lines.join("\n")}\n\nReply STOP to opt out.`;
 
-    // Collect phone numbers for group MMS
-    const phoneNumbers = members
-      .map(m => m.phone_e164)
-      .filter(phone => phone); // Remove any null/undefined
+    // Send to Twilio Conversation (fans out to all participants)
+    const tw = await sendToConversation(bot.conversation_sid, body);
+    const twilioSid = tw.sid;
 
-    if (phoneNumbers.length === 0) {
-      console.warn(`No valid phone numbers for bot ${botId}`);
-      continue;
-    }
-
-    if (phoneNumbers.length > 10) {
-      console.warn(`Bot ${botId} has ${phoneNumbers.length} members, exceeding MMS group limit of 10`);
-      // You might want to split into multiple groups or handle differently
-    }
-
-    // Send group MMS to all members
-    let twilioSid = "";
-    if (MOCK_MODE) {
-      twilioSid = `MM${crypto.randomUUID().replace(/-/g, "").substring(0, 32)}`;
-      console.log(`[MOCK MODE] Would send group MMS to: ${phoneNumbers.join(", ")}`);
-      console.log(`[MOCK MODE] Message: ${body}`);
-    } else {
-      const tw = await sendGroupMMS(phoneNumbers, body);
-      twilioSid = tw.sid;
-      console.log(`Sent group MMS to ${phoneNumbers.length} members: ${twilioSid}`);
-    }
-
-    // Log the group send
+    // Log the conversation send
     await supabase.from("message_log").insert({
       bot_id: botId,
       twilio_sid: twilioSid,
-      to_phone: `GROUP:${phoneNumbers.join(",")}`,
+      to_phone: `CONV:${bot.conversation_sid}`,
       status: "sent",
       body,
     });

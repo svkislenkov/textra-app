@@ -1,6 +1,6 @@
 # Textra App - Project Context
 
-**Last Updated:** 2025-12-04
+**Last Updated:** 2025-12-06
 
 ## Project Overview
 
@@ -178,124 +178,108 @@ TWILIO_SHARED_NUMBER_E164  # e.g., "+15551234567"
    - Updates `last_sent_date`
    - Rotates assignments (increments `position_index` modulo N)
 
-## Today's Work Session (2025-12-04)
+## Current Implementation (As of 2025-12-06)
 
-### Goal
-Make SMS notifications work with group chat functionality (where all members see each other's messages in one thread).
+### Messaging Approach: Individual SMS
 
-### What We Tried
+**Status:** Working
 
-#### Attempt 1: Individual SMS
-- Modified `run-due` to send individual SMS to each member using Programmable Messaging API
-- Used `sendSMS()` function with single recipient
-- **Result:** Works but each person gets separate message, no group interaction
+The app now sends individual SMS messages to each group member rather than attempting native group MMS or using Twilio Conversations.
 
-#### Attempt 2: Twilio Conversations (Revert)
-- Reverted to use Twilio Conversations API
+**How it works:**
+- When a scheduled message is due, `run-due` sends a separate SMS to each member
+- When a function is added to a group, `notify-function-added` sends individual welcome messages
+- Each recipient gets their own 1-on-1 message from the Textra number
+
+**Pros:**
+- Simple and reliable
+- No Twilio API limitations
+- Works with any group size
+- Lower cost per message
+
+**Cons:**
+- No native group interaction
+- Each person receives a separate message
+- Replies are not shared among group members
+
+### Future Enhancement: Reply Forwarding (Not Yet Implemented)
+
+**Concept:** Create "group chat-like" functionality where member replies are forwarded to all other members with attribution.
+
+**How it would work:**
+1. Textra sends reminder to everyone individually (e.g., "Today's chores: Adam — Dishes")
+2. Adam replies with a message
+3. Textra receives the reply via webhook
+4. Textra forwards to all other members: "Adam said, 'xyz'"
+
+**Status:** Not currently working, planned for future development.
+
+### Previous Exploration (2025-12-04)
+
+#### What We Tried
+
+**Attempt 1: Twilio Conversations**
+- Used Twilio Conversations API
 - One message posted to conversation, Twilio fans out
 - **Result:** Messages delivered but appear as individual 1-on-1 chats on phones, not group thread
+- Members can reply and everyone sees responses, but UX feels like 1-on-1 chat
 
-#### Attempt 3: Group MMS
+**Attempt 2: Group MMS**
 - Attempted to send native group MMS using comma-separated phone numbers in `To` field
-- Modified both `run-due` and `notify-function-added` to use:
-  ```typescript
-  To: toPhones.join(",") // e.g., "+17202271155,+17345483475,+19062821234"
-  ```
 - **Result:** ERROR 21211 - "Invalid 'To' Phone Number"
-- **Issue:** Twilio's Programmable Messaging API does NOT support comma-separated recipients for group MMS
+- **Root Cause:** Twilio's Programmable Messaging API does NOT support comma-separated recipients for group MMS
+- Native group MMS is not supported by Twilio's standard APIs
 
-### Current State
+**Attempt 3: Individual SMS (Current Solution)**
+- Modified `run-due` and `notify-function-added` to send individual SMS to each member
+- **Result:** Works reliably, no group interaction but messages are delivered
 
-**Files Modified:**
-1. `backend/supabase/functions/run-due/index.ts`
-   - Currently trying to send group MMS (BROKEN)
-   - Has `sendGroupMMS()` function that doesn't work with Twilio
+## Alternative Approaches Considered
 
-2. `backend/supabase/functions/notify-function-added/index.ts`
-   - Currently trying to send group MMS (BROKEN)
-   - Has `sendGroupMMS()` function that doesn't work with Twilio
-
-**Current Error:**
-```
-Error 21211: Invalid 'To' Phone Number: +17202271155,+17345483475,+1906282XXXX
-```
-
-### Root Cause
-**Native group MMS is not supported by Twilio's standard APIs.** You cannot send a message to multiple recipients that creates a native group thread on their phones using Twilio's Programmable Messaging API.
-
-## Options Moving Forward
-
-### Option 1: Individual SMS (Simple, Works Now)
+### Option 1: Individual SMS (Current Implementation ✓)
 **Pros:**
 - Reliable and simple
 - Lowest cost (~$0.0079 per SMS)
 - No limits on group size
+- No complex Twilio setup required
 
 **Cons:**
 - Each person gets separate message
-- No group interaction unless they manually create group chat
-- Multiple sends per scheduled message
+- No native group interaction
+- Multiple API calls per scheduled message
+- Replies not shared (without additional webhook logic)
 
-**Implementation:**
-- Loop through members and send individual SMS to each
-- Already implemented in earlier attempt
+**Status:** Currently implemented and working
 
-### Option 2: Twilio Conversations (Original Approach)
+### Option 2: Twilio Conversations
 **Pros:**
 - Members can reply and everyone sees responses
 - One API call per message
 - No group size limit
-- Already has infrastructure (bot-create, bot-members)
+- Infrastructure already exists (bot-create, bot-members)
 
 **Cons:**
 - On phones, appears as individual 1-on-1 chat with bot number, not group thread
 - Members don't see each other's numbers
-- Requires Conversations API setup
+- Requires Conversations API setup and management
+- More complex state management
 
-**Implementation:**
-- Revert `run-due` and `notify-function-added` back to Conversations approach
-- Use `sendToConversation()` instead of `sendGroupMMS()`
+**Status:** Previously implemented, moved away from this approach
 
 ### Option 3: In-App Chat
 **Pros:**
 - Full control over UX
 - True group chat experience
 - Can add features like read receipts, reactions, etc.
+- No SMS costs for messages
 
 **Cons:**
 - Significant development effort
 - Members must have the app installed
 - Requires push notifications setup
+- Loses "works via text message" simplicity
 
-**Implementation:**
-- Build chat feature in React Native app
-- Use Supabase Realtime for live updates
-- Keep SMS for notifications/summaries only
-
-## Next Steps (To Fix Current Issue)
-
-### Immediate Fix Required
-The app is currently broken because both `run-due` and `notify-function-added` are trying to use group MMS which doesn't work.
-
-**Recommended Action:**
-1. Decide on messaging approach (likely Option 2: Twilio Conversations)
-2. Revert both functions to working state
-3. Deploy updated functions
-
-### To Revert to Twilio Conversations
-
-**run-due/index.ts changes needed:**
-- Replace `sendGroupMMS()` with `sendToConversation()`
-- Add back `conversation_sid` to bot query
-- Filter bots to require `conversation_sid`
-- Remove `phone_e164` from member query
-- Change send logic to post to conversation instead of group MMS
-- Update logging to use `CONV:${conversation_sid}` instead of `GROUP:`
-
-**notify-function-added/index.ts changes needed:**
-- Replace `sendGroupMMS()` with temporary conversation logic
-- Create temp conversation, add participants, send, delete
-- OR: Send individual SMS to each member
+**Status:** Potential future enhancement
 
 ## Key Files Reference
 
@@ -352,12 +336,8 @@ supabase functions deploy
 ## Common Issues
 
 ### Issue: Members getting individual texts instead of group chat
-**Cause:** Using individual SMS or Conversations (not true group MMS)
-**Solution:** This is expected behavior - true group MMS not supported by Twilio
-
-### Issue: Error 21211 - Invalid 'To' Phone Number
-**Cause:** Trying to send to comma-separated phone numbers
-**Solution:** Use Conversations API or send individual messages
+**Cause:** Using individual SMS (current implementation)
+**Solution:** This is expected behavior - current design sends individual messages. For group-like interaction, implement reply forwarding webhook (planned feature)
 
 ### Issue: Messages sending multiple times per day
 **Cause:** `last_sent_date` not updating or timezone mismatch
