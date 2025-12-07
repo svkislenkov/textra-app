@@ -29,6 +29,7 @@ export default function HomeScreen() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     // Get current user and check profile
@@ -106,10 +107,36 @@ export default function HomeScreen() {
     }
   };
 
+  const fetchPendingInvitationCount = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('phone_number')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profile?.phone_number) {
+        const { count } = await supabase
+          .from('group_invitations')
+          .select('*', { count: 'exact', head: true })
+          .eq('invitee_phone_number', profile.phone_number)
+          .eq('status', 'pending');
+
+        setPendingCount(count || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching pending invitations:", error);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchBots();
       fetchGroups();
+      fetchPendingInvitationCount();
     }, [])
   );
 
@@ -163,6 +190,22 @@ export default function HomeScreen() {
           >
             <View style={styles.infoCircle}>
               <Text style={styles.infoText}>i</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Invitations Button in Center */}
+          <TouchableOpacity
+            style={styles.invitationsButton}
+            onPress={() => router.push("/pending-invitations")}
+            activeOpacity={0.8}
+          >
+            <View style={styles.invitationsContainer}>
+              <Text style={styles.invitationsText}>Invites</Text>
+              {pendingCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{pendingCount}</Text>
+                </View>
+              )}
             </View>
           </TouchableOpacity>
 
@@ -365,6 +408,44 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#764ba2",
+  },
+  invitationsButton: {
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  invitationsContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  invitationsText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#764ba2",
+  },
+  badge: {
+    backgroundColor: "#ff3b30",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   content: {
     flex: 1,

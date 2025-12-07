@@ -97,11 +97,12 @@ Deno.serve(async (req) => {
     return new Response("Group not found", { status: 404 });
   }
 
-  // Fetch group members
+  // Fetch group members (only accepted members)
   const { data: members, error: membersError } = await supabase
     .from("group_members")
     .select("name, phone_number")
-    .eq("group_id", groupId);
+    .eq("group_id", groupId)
+    .eq("invitation_status", "accepted");
 
   if (membersError) {
     return new Response(membersError.message, { status: 400 });

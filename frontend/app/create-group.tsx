@@ -259,30 +259,71 @@ export default function CreateGroupScreen() {
         return;
       }
 
-      // Add current user as first member
-      const memberInserts = [
-        {
+      // Add current user as accepted member (owner auto-accepted)
+      const { error: ownerError } = await supabase
+        .from('group_members')
+        .insert({
           group_id: groupData.id,
           name: profile.name,
           phone_number: profile.phone_number,
-          user_id: user.id, // Mark this member as the current user
-        },
-        // Add all other members
-        ...members.map(member => ({
-          group_id: groupData.id,
-          name: member.name,
-          phone_number: member.phone_number,
-          user_id: null, // Other members don't have a user_id
-        })),
-      ];
+          user_id: user.id,
+          invitation_status: 'accepted',
+        });
 
-      const { error: membersError } = await supabase
-        .from('group_members')
-        .insert(memberInserts);
-
-      if (membersError) {
-        Alert.alert('Error', membersError.message);
+      if (ownerError) {
+        Alert.alert('Error', ownerError.message);
         return;
+      }
+
+      // Create invitations for all other members
+      if (members.length > 0) {
+        const invitationInserts = members.map(member => ({
+          group_id: groupData.id,
+          inviter_user_id: user.id,
+          invitee_phone_number: member.phone_number,
+          invitee_name: member.name,
+          status: 'pending',
+        }));
+
+        const { error: invitationsError } = await supabase
+          .from('group_invitations')
+          .insert(invitationInserts);
+
+        if (invitationsError) {
+          Alert.alert('Error', invitationsError.message);
+          return;
+        }
+
+        // Check if any invitees already have accounts and auto-accept them
+        for (const member of members) {
+          const { data: existingUser } = await supabase
+            .from('user_profiles')
+            .select('user_id, name')
+            .eq('phone_number', member.phone_number)
+            .single();
+
+          if (existingUser) {
+            // Auto-accept: Create group_member
+            await supabase.from('group_members').insert({
+              group_id: groupData.id,
+              name: existingUser.name,
+              phone_number: member.phone_number,
+              user_id: existingUser.user_id,
+              invitation_status: 'accepted',
+            });
+
+            // Update invitation status
+            await supabase
+              .from('group_invitations')
+              .update({
+                status: 'accepted',
+                responded_at: new Date().toISOString(),
+                created_by_user_id: existingUser.user_id
+              })
+              .eq('group_id', groupData.id)
+              .eq('invitee_phone_number', member.phone_number);
+          }
+        }
       }
 
       // Add bot assignments if any bots are selected
@@ -316,7 +357,11 @@ export default function CreateGroupScreen() {
         }
       }
 
-      Alert.alert('Success', 'Group created successfully!', [
+      const successMessage = members.length > 0
+        ? `Group created! Invitations sent to ${members.length} member(s). They'll need to accept before receiving messages.`
+        : 'Group created successfully!';
+
+      Alert.alert('Success', successMessage, [
         {
           text: 'OK',
           onPress: () => router.back(),

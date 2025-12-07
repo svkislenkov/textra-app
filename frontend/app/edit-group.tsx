@@ -361,31 +361,101 @@ export default function EditGroupScreen() {
         return;
       }
 
-      // Delete all existing members
-      const { error: deleteError } = await supabase
-        .from('group_members')
-        .delete()
-        .eq('group_id', id);
-
-      if (deleteError) {
-        console.error('Error deleting members:', deleteError);
+      // Get current user for inviter_user_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in');
+        return;
       }
 
-      // Add all current members (preserving user_id if it exists)
-      const memberInserts = members.map(member => ({
-        group_id: id,
-        name: member.name,
-        phone_number: member.phone_number,
-        user_id: member.user_id || null,
-      }));
-
-      const { error: membersError } = await supabase
+      // Fetch current members and invitations
+      const { data: currentMembers } = await supabase
         .from('group_members')
-        .insert(memberInserts);
+        .select('phone_number')
+        .eq('group_id', id);
 
-      if (membersError) {
-        Alert.alert('Error', membersError.message);
-        return;
+      const { data: currentInvitations } = await supabase
+        .from('group_invitations')
+        .select('invitee_phone_number')
+        .eq('group_id', id)
+        .eq('status', 'pending');
+
+      // Build sets for comparison
+      const currentPhones = new Set([
+        ...(currentMembers?.map(m => m.phone_number) || []),
+        ...(currentInvitations?.map(i => i.invitee_phone_number) || [])
+      ]);
+
+      const newPhones = new Set(members.map(m => m.phone_number));
+
+      // Determine additions and removals
+      const toAdd = members.filter(m => !currentPhones.has(m.phone_number));
+      const toRemove = Array.from(currentPhones).filter(p => !newPhones.has(p));
+
+      // Add new invitations
+      if (toAdd.length > 0) {
+        const invitationInserts = toAdd.map(member => ({
+          group_id: id,
+          inviter_user_id: user.id,
+          invitee_phone_number: member.phone_number,
+          invitee_name: member.name,
+          status: 'pending',
+        }));
+
+        const { error: invitationsError } = await supabase
+          .from('group_invitations')
+          .insert(invitationInserts);
+
+        if (invitationsError) {
+          Alert.alert('Error', invitationsError.message);
+          return;
+        }
+
+        // Check and auto-accept existing users
+        for (const member of toAdd) {
+          const { data: existingUser } = await supabase
+            .from('user_profiles')
+            .select('user_id, name')
+            .eq('phone_number', member.phone_number)
+            .single();
+
+          if (existingUser) {
+            // Auto-accept: Create group_member
+            await supabase.from('group_members').insert({
+              group_id: id,
+              name: existingUser.name,
+              phone_number: member.phone_number,
+              user_id: existingUser.user_id,
+              invitation_status: 'accepted',
+            });
+
+            // Update invitation status
+            await supabase
+              .from('group_invitations')
+              .update({
+                status: 'accepted',
+                responded_at: new Date().toISOString(),
+                created_by_user_id: existingUser.user_id
+              })
+              .eq('group_id', id)
+              .eq('invitee_phone_number', member.phone_number);
+          }
+        }
+      }
+
+      // Remove members and invitations
+      if (toRemove.length > 0) {
+        await supabase
+          .from('group_members')
+          .delete()
+          .eq('group_id', id)
+          .in('phone_number', toRemove);
+
+        await supabase
+          .from('group_invitations')
+          .delete()
+          .eq('group_id', id)
+          .in('invitee_phone_number', toRemove);
       }
 
       // Show notification if there are assigned bots/functions

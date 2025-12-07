@@ -31,6 +31,35 @@ export default function ProfileSetupScreen() {
     setPhoneNumber(formatted);
   };
 
+  async function checkPendingInvitations(userId: string, phoneNumber: string) {
+    try {
+      const { data: invitations } = await supabase
+        .from('group_invitations')
+        .select('id, groups(name)')
+        .eq('invitee_phone_number', phoneNumber)
+        .eq('status', 'pending');
+
+      if (invitations && invitations.length > 0) {
+        Alert.alert(
+          'Group Invitations',
+          `You have ${invitations.length} pending group invitation(s). View them now?`,
+          [
+            { text: 'Later', style: 'cancel' },
+            {
+              text: 'View',
+              onPress: () => {
+                router.back();
+                router.push('/pending-invitations');
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error checking pending invitations:', error);
+    }
+  }
+
   async function saveProfileData() {
     setLoading(true);
 
@@ -79,6 +108,9 @@ export default function ProfileSetupScreen() {
           return;
         }
       }
+
+      // Check for pending invitations
+      await checkPendingInvitations(user.id, phoneNumber.trim());
 
       Alert.alert("Success", "Profile saved successfully!", [
         {
