@@ -162,13 +162,9 @@ export default function HomeScreen() {
     }
   }
 
-  const getInitial = (email: string) => {
-    return email.charAt(0).toUpperCase();
-  };
-
   const showHelpMessage = () => {
     // ⚠️ MODIFY THE HELP MESSAGE BELOW ⚠️
-    const helpMessage = "First, create a function you want your group to be able to use. Next, create a group and apply that function to it. Notifications to that group will then be sent out based on your function specifications.";
+    const helpMessage = "First, create a notification you want your group to receive. Next, create a group and apply that notification to it. Messages to that group will then be sent out based on your notification specifications.";
     // ⚠️ END OF MESSAGE TO MODIFY ⚠️
 
     Alert.alert("How to Use Textra", helpMessage);
@@ -200,7 +196,7 @@ export default function HomeScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.invitationsContainer}>
-              <Text style={styles.invitationsText}>Invites</Text>
+              <Text style={styles.invitationsText}>View Invites</Text>
               {pendingCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{pendingCount}</Text>
@@ -209,14 +205,14 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* User Avatar in Top Right */}
+          {/* Settings Gear in Top Right */}
           <TouchableOpacity
-            style={styles.avatarButton}
+            style={styles.settingsButton}
             onPress={() => router.push("/settings")}
             activeOpacity={0.8}
           >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitial(userEmail)}</Text>
+            <View style={styles.settingsCircle}>
+              <Text style={styles.settingsIcon}>⚙</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -226,10 +222,10 @@ export default function HomeScreen() {
             <Text style={styles.logoText}>TEXTRA</Text>
           </View>
 
-          {/* Textra Functions Section */}
+          {/* Textra Notifications Section */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Functions</Text>
+              <Text style={styles.sectionTitle}>Notifications</Text>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => router.push("/create-bot")}
@@ -240,7 +236,7 @@ export default function HomeScreen() {
             </View>
             {bots.length === 0 ? (
               <View style={styles.sectionContent}>
-                <Text style={styles.sectionPlaceholder}>No functions yet</Text>
+                <Text style={styles.sectionPlaceholder}>No notifications yet</Text>
               </View>
             ) : (
               <View style={styles.botsListContainer}>
@@ -256,22 +252,13 @@ export default function HomeScreen() {
                         <Text style={styles.editButtonText}>Edit</Text>
                       </TouchableOpacity>
                     </View>
-                    <Text style={styles.botDescription}>{bot.description}</Text>
                     <View style={styles.botDetails}>
-                      {bot.function && (
-                        <View style={styles.botDetailItem}>
-                          <Text style={styles.botDetailLabel}>Function:</Text>
-                          <Text style={styles.botDetailValue}>{bot.function}</Text>
-                        </View>
-                      )}
                       {bot.type && (
                         <View style={styles.botDetailItem}>
                           <Text style={styles.botDetailLabel}>Type:</Text>
                           <Text style={styles.botDetailValue}>{bot.type}</Text>
                         </View>
                       )}
-                    </View>
-                    <View style={styles.botDetails}>
                       <View style={styles.botDetailItem}>
                         <Text style={styles.botDetailLabel}>Frequency:</Text>
                         <Text style={styles.botDetailValue}>{bot.frequency}</Text>
@@ -384,7 +371,7 @@ const styles = StyleSheet.create({
     color: "#764ba2",
     fontStyle: "italic",
   },
-  avatarButton: {
+  settingsButton: {
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -394,7 +381,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  avatar: {
+  settingsCircle: {
     width: 50,
     height: 50,
     borderRadius: 25,
@@ -404,7 +391,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255, 255, 255, 0.5)",
   },
-  avatarText: {
+  settingsIcon: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#764ba2",
@@ -422,8 +409,8 @@ const styles = StyleSheet.create({
   invitationsContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.9)",
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    height: 50,
+    borderRadius: 25,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -554,8 +541,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   botDetails: {
-    flexDirection: "row",
-    gap: 16,
+    flexDirection: "column",
+    gap: 6,
   },
   botDetailItem: {
     flexDirection: "row",

@@ -13,7 +13,6 @@ export default function CreateBotScreen() {
   };
 
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [functionType, setFunctionType] = useState("Chore Rotation");
   const [choreType, setChoreType] = useState("Take out trash");
   const [frequency, setFrequency] = useState("Daily");
@@ -44,8 +43,8 @@ export default function CreateBotScreen() {
   };
 
   async function handleCreateBot() {
-    if (!name.trim() || !description.trim()) {
-      Alert.alert("Error", "Please fill in all fields");
+    if (!name.trim()) {
+      Alert.alert("Error", "Please enter a notification name");
       return;
     }
 
@@ -60,14 +59,13 @@ export default function CreateBotScreen() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        Alert.alert("Error", "You must be logged in to create a function");
+        Alert.alert("Error", "You must be logged in to create a notification");
         return;
       }
 
       const { error } = await supabase.from("bots").insert({
         user_id: user.id,
         name: name.trim(),
-        description: description.trim(),
         function: functionType,
         type: choreType,
         message_template: choreType === "Custom Type" ? messageTemplate.trim() : null,
@@ -82,7 +80,7 @@ export default function CreateBotScreen() {
         return;
       }
 
-      Alert.alert("Success", "Function created successfully!", [
+      Alert.alert("Success", "Notification created successfully!", [
         {
           text: "OK",
           onPress: () => router.back(),
@@ -114,7 +112,7 @@ export default function CreateBotScreen() {
             >
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Create Function</Text>
+            <Text style={styles.title}>Create Notification</Text>
           </View>
 
           <View style={styles.formContainer}>
@@ -124,28 +122,14 @@ export default function CreateBotScreen() {
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="Enter function name"
+                placeholder="Enter notification name"
                 placeholderTextColor="rgba(255, 255, 255, 0.5)"
                 editable={!loading}
               />
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Description</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Enter function description"
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                multiline
-                numberOfLines={3}
-                editable={!loading}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Function</Text>
+              <Text style={styles.inputLabel}>Category</Text>
               <View style={styles.frequencyContainer}>
                 {functions.map((func) => (
                   <TouchableOpacity
@@ -337,7 +321,7 @@ export default function CreateBotScreen() {
               disabled={loading}
             >
               <Text style={styles.createButtonText}>
-                {loading ? "Creating..." : "Create Function"}
+                {loading ? "Creating..." : "Create Notification"}
               </Text>
             </TouchableOpacity>
           </View>

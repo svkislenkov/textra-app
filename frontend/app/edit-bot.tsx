@@ -8,7 +8,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 export default function EditBotScreen() {
   const { id } = useLocalSearchParams();
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [functionType, setFunctionType] = useState("Chore Rotation");
   const [choreType, setChoreType] = useState("Take out trash");
   const [frequency, setFrequency] = useState("Daily");
@@ -52,7 +51,6 @@ export default function EditBotScreen() {
 
       if (data) {
         setName(data.name);
-        setDescription(data.description);
         setFunctionType(data.function || "Chore Rotation");
         setChoreType(data.type || "Take out trash");
         setMessageTemplate(data.message_template || "");
@@ -84,8 +82,8 @@ export default function EditBotScreen() {
   };
 
   async function handleUpdateBot() {
-    if (!name.trim() || !description.trim()) {
-      Alert.alert("Error", "Please fill in all fields");
+    if (!name.trim()) {
+      Alert.alert("Error", "Please enter a notification name");
       return;
     }
 
@@ -101,7 +99,6 @@ export default function EditBotScreen() {
         .from("bots")
         .update({
           name: name.trim(),
-          description: description.trim(),
           function: functionType,
           type: choreType,
           message_template: choreType === "Custom Type" ? messageTemplate.trim() : null,
@@ -118,7 +115,7 @@ export default function EditBotScreen() {
         return;
       }
 
-      Alert.alert("Success", "Function updated successfully!", [
+      Alert.alert("Success", "Notification updated successfully!", [
         {
           text: "OK",
           onPress: () => router.back(),
@@ -134,8 +131,8 @@ export default function EditBotScreen() {
 
   async function handleDeleteBot() {
     Alert.alert(
-      "Delete Function",
-      "Are you sure you want to delete this function?",
+      "Delete Notification",
+      "Are you sure you want to delete this notification?",
       [
         {
           text: "Cancel",
@@ -157,7 +154,7 @@ export default function EditBotScreen() {
                 return;
               }
 
-              Alert.alert("Success", "Function deleted successfully!", [
+              Alert.alert("Success", "Notification deleted successfully!", [
                 {
                   text: "OK",
                   onPress: () => router.back(),
@@ -183,7 +180,7 @@ export default function EditBotScreen() {
       >
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading function...</Text>
+            <Text style={styles.loadingText}>Loading notification...</Text>
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -208,7 +205,7 @@ export default function EditBotScreen() {
             >
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Edit Function</Text>
+            <Text style={styles.title}>Edit Notification</Text>
           </View>
 
           <View style={styles.formContainer}>
@@ -218,28 +215,14 @@ export default function EditBotScreen() {
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="Enter function name"
+                placeholder="Enter notification name"
                 placeholderTextColor="rgba(255, 255, 255, 0.5)"
                 editable={!loading}
               />
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Description</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Enter function description"
-                placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                multiline
-                numberOfLines={3}
-                editable={!loading}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Function</Text>
+              <Text style={styles.inputLabel}>Category</Text>
               <View style={styles.frequencyContainer}>
                 {functions.map((func) => (
                   <TouchableOpacity
@@ -431,7 +414,7 @@ export default function EditBotScreen() {
               disabled={loading}
             >
               <Text style={styles.updateButtonText}>
-                {loading ? "Updating..." : "Update Function"}
+                {loading ? "Updating..." : "Update Notification"}
               </Text>
             </TouchableOpacity>
 
@@ -441,7 +424,7 @@ export default function EditBotScreen() {
               activeOpacity={0.8}
               disabled={loading}
             >
-              <Text style={styles.deleteButtonText}>Delete Function</Text>
+              <Text style={styles.deleteButtonText}>Delete Notification</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

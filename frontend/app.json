@@ -44,14 +44,7 @@
         }
       ],
       "expo-router",
-      "expo-localization",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#764ba2"
-        }
-      ]
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,

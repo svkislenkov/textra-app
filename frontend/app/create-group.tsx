@@ -3,13 +3,14 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, S
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
-import { showFunctionAddedNotification, sendFunctionAddedSMS } from "../lib/notifications";
+import { sendFunctionAddedSMS } from "../lib/notifications";
 import * as Contacts from 'expo-contacts';
 
 interface Member {
   id: string;
   name: string;
   phone_number: string;
+  invitation_status?: 'pending' | 'accepted';
 }
 
 interface Bot {
@@ -24,6 +25,7 @@ interface Bot {
 export default function CreateGroupScreen() {
   const [groupName, setGroupName] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
+  const [currentUserPhone, setCurrentUserPhone] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   // Manual add state
@@ -44,7 +46,27 @@ export default function CreateGroupScreen() {
 
   useEffect(() => {
     fetchAvailableBots();
+    fetchCurrentUserPhone();
   }, []);
+
+  async function fetchCurrentUserPhone() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('phone_number')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profile) {
+          setCurrentUserPhone(profile.phone_number);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user phone:', error);
+    }
+  }
 
   async function fetchAvailableBots() {
     try {
@@ -127,7 +149,7 @@ export default function CreateGroupScreen() {
     }
   }
 
-  function selectContact(contact: Contacts.Contact) {
+  async function selectContact(contact: Contacts.Contact) {
     if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) {
       Alert.alert('No Phone Number', 'This contact does not have a phone number.');
       return;
@@ -142,10 +164,18 @@ export default function CreateGroupScreen() {
       return;
     }
 
+    // Check if user already has an account
+    const { data: existingUser } = await supabase
+      .from('user_profiles')
+      .select('user_id')
+      .eq('phone_number', phoneNumber)
+      .single();
+
     const newMember: Member = {
       id: Date.now().toString(),
       name,
       phone_number: phoneNumber,
+      invitation_status: existingUser ? 'accepted' : 'pending',
     };
 
     setMembers([...members, newMember]);
@@ -153,7 +183,7 @@ export default function CreateGroupScreen() {
     setSearchQuery("");
   }
 
-  function addManualMember() {
+  async function addManualMember() {
     if (!manualName.trim() || !manualPhone.trim()) {
       Alert.alert('Error', 'Please enter both name and phone number');
       return;
@@ -165,10 +195,18 @@ export default function CreateGroupScreen() {
       return;
     }
 
+    // Check if user already has an account
+    const { data: existingUser } = await supabase
+      .from('user_profiles')
+      .select('user_id')
+      .eq('phone_number', manualPhone.trim())
+      .single();
+
     const newMember: Member = {
       id: Date.now().toString(),
       name: manualName.trim(),
       phone_number: manualPhone.trim(),
+      invitation_status: existingUser ? 'accepted' : 'pending',
     };
 
     setMembers([...members, newMember]);
@@ -279,6 +317,7 @@ export default function CreateGroupScreen() {
       if (members.length > 0) {
         const invitationInserts = members.map(member => ({
           group_id: groupData.id,
+          group_name: groupData.name,
           inviter_user_id: user.id,
           invitee_phone_number: member.phone_number,
           invitee_name: member.name,
@@ -342,9 +381,6 @@ export default function CreateGroupScreen() {
           Alert.alert('Error', botsError.message);
           return;
         }
-
-        // Show notification after successfully adding bots
-        await showFunctionAddedNotification();
 
         // Send SMS notifications to group members
         try {
@@ -416,9 +452,12 @@ export default function CreateGroupScreen() {
 
             {/* Members Section */}
             <View style={styles.sectionContainer}>
-              <Text style={styles.sectionLabel}>Members ({members.length})</Text>
+              <Text style={styles.sectionLabel}>Invite Members ({members.length})</Text>
+              <Text style={styles.sectionHint}>
+                Members will receive an invitation to join this group
+              </Text>
 
-              {/* Add Member Buttons */}
+              {/* Invite Member Buttons */}
               <View style={styles.addButtonsContainer}>
                 <TouchableOpacity
                   style={styles.actionButton}
@@ -438,7 +477,7 @@ export default function CreateGroupScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={styles.actionButtonText}>
-                    {showManualAdd ? 'Cancel' : 'Add Manually'}
+                    {showManualAdd ? 'Cancel' : 'Invite Manually'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -466,7 +505,7 @@ export default function CreateGroupScreen() {
                     onPress={addManualMember}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.addMemberButtonText}>Add Member</Text>
+                    <Text style={styles.addMemberButtonText}>Invite Member</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -474,21 +513,40 @@ export default function CreateGroupScreen() {
               {/* Members List */}
               {members.length > 0 && (
                 <View style={styles.membersListContainer}>
-                  {members.map(member => (
-                    <View key={member.id} style={styles.memberCard}>
-                      <View style={styles.memberInfo}>
-                        <Text style={styles.memberName}>{member.name}</Text>
-                        <Text style={styles.memberPhone}>{member.phone_number}</Text>
+                  {members.map(member => {
+                    const isCurrentUser = member.phone_number === currentUserPhone;
+                    return (
+                      <View key={member.id} style={styles.memberCard}>
+                        <View style={styles.memberInfo}>
+                          <View style={styles.memberNameRow}>
+                            <Text style={styles.memberName}>
+                              {isCurrentUser ? 'Me' : member.name}
+                            </Text>
+                            {member.invitation_status && !isCurrentUser && (
+                              <View style={[
+                                styles.statusBadge,
+                                member.invitation_status === 'accepted' ? styles.statusAccepted : styles.statusPending
+                              ]}>
+                                <Text style={styles.statusText}>
+                                  {member.invitation_status === 'accepted' ? 'Will Accept' : 'Pending'}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.memberPhone}>{member.phone_number}</Text>
+                        </View>
+                        {!isCurrentUser && (
+                          <TouchableOpacity
+                            style={styles.removeMemberButton}
+                            onPress={() => removeMember(member.id)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.removeMemberButtonText}>×</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
-                      <TouchableOpacity
-                        style={styles.removeMemberButton}
-                        onPress={() => removeMember(member.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.removeMemberButtonText}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
 
@@ -499,10 +557,10 @@ export default function CreateGroupScreen() {
               )}
             </View>
 
-            {/* Functions Section */}
+            {/* Notifications Section */}
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionLabel}>Functions ({selectedBots.length})</Text>
+                <Text style={styles.sectionLabel}>Notifications ({selectedBots.length})</Text>
                 <TouchableOpacity
                   style={styles.addButton}
                   onPress={() => setShowBotPicker(true)}
@@ -539,7 +597,7 @@ export default function CreateGroupScreen() {
 
               {selectedBots.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No functions assigned yet</Text>
+                  <Text style={styles.emptyStateText}>No notifications assigned yet</Text>
                 </View>
               )}
             </View>
@@ -616,7 +674,7 @@ export default function CreateGroupScreen() {
           </LinearGradient>
         </Modal>
 
-        {/* Function Picker Modal */}
+        {/* Notification Picker Modal */}
         <Modal
           animationType="slide"
           transparent={false}
@@ -629,7 +687,7 @@ export default function CreateGroupScreen() {
           >
             <SafeAreaView style={styles.safeArea}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select a Function</Text>
+                <Text style={styles.modalTitle}>Select a Notification</Text>
                 <TouchableOpacity onPress={() => setShowBotPicker(false)}>
                   <Text style={styles.modalCloseText}>Close</Text>
                 </TouchableOpacity>
@@ -656,7 +714,7 @@ export default function CreateGroupScreen() {
                 )}
                 ListEmptyComponent={
                   <View style={styles.emptyState}>
-                    <Text style={styles.emptyStateText}>No functions available</Text>
+                    <Text style={styles.emptyStateText}>No notifications available</Text>
                   </View>
                 }
               />
@@ -735,6 +793,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  sectionHint: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.7)",
+    marginTop: 4,
+    marginBottom: 8,
   },
   addButton: {
     width: 36,
@@ -815,15 +879,40 @@ const styles = StyleSheet.create({
   memberInfo: {
     flex: 1,
   },
+  memberNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: "wrap",
+  },
   memberName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#ffffff",
-    marginBottom: 4,
   },
   memberPhone: {
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.8)",
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  statusAccepted: {
+    backgroundColor: "rgba(52, 199, 89, 0.2)",
+    borderColor: "rgba(52, 199, 89, 0.6)",
+  },
+  statusPending: {
+    backgroundColor: "rgba(255, 159, 10, 0.2)",
+    borderColor: "rgba(255, 159, 10, 0.6)",
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#ffffff",
   },
   removeMemberButton: {
     width: 28,

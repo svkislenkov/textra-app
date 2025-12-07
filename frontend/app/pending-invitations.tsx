@@ -8,14 +8,7 @@ interface Invitation {
   id: string;
   invitee_name: string;
   invited_at: string;
-  group: {
-    name: string;
-  };
-  inviter: {
-    user_profiles: {
-      name: string;
-    };
-  };
+  group_name: string;
 }
 
 export default function PendingInvitationsScreen() {
@@ -45,16 +38,12 @@ export default function PendingInvitationsScreen() {
         return;
       }
 
+      console.log('DEBUG: Looking for invitations with phone:', profile.phone_number);
+
       // Fetch pending invitations matching user's phone number
       const { data, error } = await supabase
         .from('group_invitations')
-        .select(`
-          id,
-          invitee_name,
-          invited_at,
-          groups!inner(name),
-          inviter:inviter_user_id(user_profiles!inner(name))
-        `)
+        .select('id, invitee_name, invited_at, group_name')
         .eq('invitee_phone_number', profile.phone_number)
         .eq('status', 'pending')
         .order('invited_at', { ascending: false });
@@ -64,6 +53,9 @@ export default function PendingInvitationsScreen() {
         Alert.alert('Error', 'Failed to load invitations');
         return;
       }
+
+      console.log('DEBUG: Found invitations:', data);
+      console.log('DEBUG: Invitation count:', data?.length || 0);
 
       setInvitations(data || []);
     } catch (error) {
@@ -113,7 +105,7 @@ export default function PendingInvitationsScreen() {
 
       Alert.alert(
         'Success',
-        `You've joined ${invitation.group.name}!`,
+        `You've joined ${invitation.group_name}!`,
         [
           {
             text: 'OK',
@@ -132,7 +124,7 @@ export default function PendingInvitationsScreen() {
   const handleDecline = async (invitation: Invitation) => {
     Alert.alert(
       'Decline Invitation',
-      `Are you sure you want to decline the invitation to join ${invitation.group.name}?`,
+      `Are you sure you want to decline the invitation to join ${invitation.group_name}?`,
       [
         {
           text: 'Cancel',
@@ -238,11 +230,11 @@ export default function PendingInvitationsScreen() {
               {invitations.map((invitation) => (
                 <View key={invitation.id} style={styles.invitationCard}>
                   <View style={styles.invitationHeader}>
-                    <Text style={styles.groupName}>{invitation.group.name}</Text>
+                    <Text style={styles.groupName}>{invitation.group_name || 'A Group'}</Text>
                     <Text style={styles.invitedDate}>{formatDate(invitation.invited_at)}</Text>
                   </View>
                   <Text style={styles.inviterText}>
-                    Invited by {invitation.inviter?.user_profiles?.name || 'Unknown'}
+                    You've been invited to join this group
                   </Text>
 
                   <View style={styles.buttonContainer}>
