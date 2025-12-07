@@ -22,6 +22,7 @@ interface Group {
   id: string;
   name: string;
   member_count?: number;
+  pending_count?: number;
 }
 
 export default function HomeScreen() {
@@ -86,7 +87,7 @@ export default function HomeScreen() {
     try {
       const { data, error } = await supabase
         .from("groups")
-        .select("*, group_members(count)")
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -94,14 +95,32 @@ export default function HomeScreen() {
         return;
       }
 
-      // Transform the data to include member count
-      const groupsWithCount = data.map(group => ({
-        id: group.id,
-        name: group.name,
-        member_count: group.group_members?.[0]?.count || 0,
-      }));
+      // Fetch member and pending counts for each group
+      const groupsWithCounts = await Promise.all(
+        (data || []).map(async (group) => {
+          // Count accepted members
+          const { count: memberCount } = await supabase
+            .from('group_members')
+            .select('*', { count: 'exact', head: true })
+            .eq('group_id', group.id);
 
-      setGroups(groupsWithCount || []);
+          // Count pending invitations
+          const { count: pendingCount } = await supabase
+            .from('group_invitations')
+            .select('*', { count: 'exact', head: true })
+            .eq('group_id', group.id)
+            .eq('status', 'pending');
+
+          return {
+            id: group.id,
+            name: group.name,
+            member_count: memberCount || 0,
+            pending_count: pendingCount || 0,
+          };
+        })
+      );
+
+      setGroups(groupsWithCounts);
     } catch (error) {
       console.error("Error fetching groups:", error);
     }
@@ -318,6 +337,9 @@ export default function HomeScreen() {
                     </View>
                     <Text style={styles.botDescription}>
                       {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
+                      {group.pending_count && group.pending_count > 0 && (
+                        <Text style={styles.pendingText}> ({group.pending_count} pending)</Text>
+                      )}
                     </Text>
                   </View>
                 ))}
@@ -539,6 +561,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.8)",
     marginBottom: 12,
+  },
+  pendingText: {
+    fontSize: 13,
+    color: "rgba(255, 159, 10, 0.9)",
+    fontStyle: "italic",
   },
   botDetails: {
     flexDirection: "column",
