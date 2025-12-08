@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, ScrollView, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { useCallback } from "react";
+import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 
 interface Bot {
   id: string;
@@ -25,12 +26,150 @@ interface Group {
   pending_count?: number;
 }
 
+function GroupsRoute({ groups, router }: { groups: Group[]; router: any }) {
+  return (
+    <ScrollView
+      style={styles.tabContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.tabContentContainer}
+    >
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Groups</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push("/create-group")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+        {groups.length === 0 ? (
+          <View style={styles.sectionContent}>
+            <Text style={styles.sectionPlaceholder}>No groups yet</Text>
+          </View>
+        ) : (
+          <View style={styles.botsListContainer}>
+            {groups.map((group) => (
+              <View key={group.id} style={styles.botCard}>
+                <View style={styles.botCardHeader}>
+                  <Text style={styles.botName}>{group.name}</Text>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => router.push(`/edit-group?id=${group.id}`)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.botDescription}>
+                  {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
+                  {(group.pending_count ?? 0) > 0 && (
+                    <Text style={styles.pendingText}> ({group.pending_count} pending)</Text>
+                  )}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function NotificationsRoute({
+  bots,
+  router,
+  formatTime
+}: {
+  bots: Bot[];
+  router: any;
+  formatTime: (timeString: string) => string;
+}) {
+  return (
+    <ScrollView
+      style={styles.tabContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.tabContentContainer}
+    >
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push("/create-bot")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+        {bots.length === 0 ? (
+          <View style={styles.sectionContent}>
+            <Text style={styles.sectionPlaceholder}>No notifications yet</Text>
+          </View>
+        ) : (
+          <View style={styles.botsListContainer}>
+            {bots.map((bot) => (
+              <View key={bot.id} style={styles.botCard}>
+                <View style={styles.botCardHeader}>
+                  <Text style={styles.botName}>{bot.name}</Text>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => router.push(`/edit-bot?id=${bot.id}`)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.botDetails}>
+                  {bot.type && (
+                    <View style={styles.botDetailItem}>
+                      <Text style={styles.botDetailLabel}>Type:</Text>
+                      <Text style={styles.botDetailValue}>{bot.type}</Text>
+                    </View>
+                  )}
+                  <View style={styles.botDetailItem}>
+                    <Text style={styles.botDetailLabel}>Frequency:</Text>
+                    <Text style={styles.botDetailValue}>{bot.frequency}</Text>
+                  </View>
+                  {bot.frequency === "Weekly" && bot.day_of_week && (
+                    <View style={styles.botDetailItem}>
+                      <Text style={styles.botDetailLabel}>Day:</Text>
+                      <Text style={styles.botDetailValue}>{bot.day_of_week}</Text>
+                    </View>
+                  )}
+                  {bot.frequency === "Monthly" && bot.day_of_month && (
+                    <View style={styles.botDetailItem}>
+                      <Text style={styles.botDetailLabel}>Day:</Text>
+                      <Text style={styles.botDetailValue}>{bot.day_of_month}</Text>
+                    </View>
+                  )}
+                  <View style={styles.botDetailItem}>
+                    <Text style={styles.botDetailLabel}>Time:</Text>
+                    <Text style={styles.botDetailValue}>{formatTime(bot.time)}</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 export default function HomeScreen() {
   const [userEmail, setUserEmail] = useState("");
   const [bots, setBots] = useState<Bot[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [index, setIndex] = useState(1); // Start on Notifications (right)
+  const [routes] = useState([
+    { key: 'groups', title: 'Groups' },
+    { key: 'notifications', title: 'Notifications' },
+  ]);
+  const { width } = useWindowDimensions();
 
   useEffect(() => {
     // Get current user and check profile
@@ -236,117 +375,37 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.topSection}>
-            <Text style={styles.logoText}>TEXTRA</Text>
-          </View>
+        {/* TEXTRA Logo */}
+        <View style={styles.topSection}>
+          <Text style={styles.logoText}>TEXTRA</Text>
+        </View>
 
-          {/* Textra Notifications Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Notifications</Text>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => router.push("/create-bot")}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.addButtonText}>+</Text>
-              </TouchableOpacity>
-            </View>
-            {bots.length === 0 ? (
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionPlaceholder}>No notifications yet</Text>
-              </View>
-            ) : (
-              <View style={styles.botsListContainer}>
-                {bots.map((bot) => (
-                  <View key={bot.id} style={styles.botCard}>
-                    <View style={styles.botCardHeader}>
-                      <Text style={styles.botName}>{bot.name}</Text>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => router.push(`/edit-bot?id=${bot.id}`)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.editButtonText}>Edit</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={styles.botDetails}>
-                      {bot.type && (
-                        <View style={styles.botDetailItem}>
-                          <Text style={styles.botDetailLabel}>Type:</Text>
-                          <Text style={styles.botDetailValue}>{bot.type}</Text>
-                        </View>
-                      )}
-                      <View style={styles.botDetailItem}>
-                        <Text style={styles.botDetailLabel}>Frequency:</Text>
-                        <Text style={styles.botDetailValue}>{bot.frequency}</Text>
-                      </View>
-                      {bot.frequency === "Weekly" && bot.day_of_week && (
-                        <View style={styles.botDetailItem}>
-                          <Text style={styles.botDetailLabel}>Day:</Text>
-                          <Text style={styles.botDetailValue}>{bot.day_of_week}</Text>
-                        </View>
-                      )}
-                      {bot.frequency === "Monthly" && bot.day_of_month && (
-                        <View style={styles.botDetailItem}>
-                          <Text style={styles.botDetailLabel}>Day:</Text>
-                          <Text style={styles.botDetailValue}>{bot.day_of_month}</Text>
-                        </View>
-                      )}
-                      <View style={styles.botDetailItem}>
-                        <Text style={styles.botDetailLabel}>Time:</Text>
-                        <Text style={styles.botDetailValue}>{formatTime(bot.time)}</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Groups Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Groups</Text>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => router.push("/create-group")}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.addButtonText}>+</Text>
-              </TouchableOpacity>
-            </View>
-            {groups.length === 0 ? (
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionPlaceholder}>No groups yet</Text>
-              </View>
-            ) : (
-              <View style={styles.botsListContainer}>
-                {groups.map((group) => (
-                  <View key={group.id} style={styles.botCard}>
-                    <View style={styles.botCardHeader}>
-                      <Text style={styles.botName}>{group.name}</Text>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => router.push(`/edit-group?id=${group.id}`)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.editButtonText}>Edit</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={styles.botDescription}>
-                      {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
-                      {group.pending_count && group.pending_count > 0 && (
-                        <Text style={styles.pendingText}> ({group.pending_count} pending)</Text>
-                      )}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        </ScrollView>
+        {/* Tab View */}
+        <TabView
+          navigationState={{ index, routes }}
+          renderScene={SceneMap({
+            groups: () => <GroupsRoute groups={groups} router={router} />,
+            notifications: () => (
+              <NotificationsRoute
+                bots={bots}
+                router={router}
+                formatTime={formatTime}
+              />
+            ),
+          })}
+          onIndexChange={setIndex}
+          initialLayout={{ width }}
+          renderTabBar={(props) => (
+            <TabBar
+              {...props}
+              indicatorStyle={styles.tabIndicator}
+              style={styles.tabBar}
+              labelStyle={styles.tabLabel}
+              activeColor="#ffffff"
+              inactiveColor="rgba(255, 255, 255, 0.6)"
+            />
+          )}
+        />
       </SafeAreaView>
     </LinearGradient>
   );
@@ -455,11 +514,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "bold",
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 30,
-    paddingTop: 20,
   },
   topSection: {
     alignItems: "center",
@@ -584,5 +638,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#ffffff",
     fontWeight: "500",
+  },
+  tabBar: {
+    backgroundColor: 'transparent',
+    elevation: 0,
+    shadowOpacity: 0,
+    marginTop: 10,
+  },
+  tabIndicator: {
+    backgroundColor: '#ffffff',
+    height: 3,
+    borderRadius: 1.5,
+  },
+  tabLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    textTransform: 'none',
+  },
+  tabContent: {
+    flex: 1,
+  },
+  tabContentContainer: {
+    paddingHorizontal: 30,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
 });

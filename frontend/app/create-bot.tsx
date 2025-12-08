@@ -66,6 +66,7 @@ export default function CreateBotScreen() {
       const { error } = await supabase.from("bots").insert({
         user_id: user.id,
         name: name.trim(),
+        description: "",
         function: functionType,
         type: choreType,
         message_template: choreType === "Custom Type" ? messageTemplate.trim() : null,

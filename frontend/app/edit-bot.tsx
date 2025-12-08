@@ -99,6 +99,7 @@ export default function EditBotScreen() {
         .from("bots")
         .update({
           name: name.trim(),
+          description: "",
           function: functionType,
           type: choreType,
           message_template: choreType === "Custom Type" ? messageTemplate.trim() : null,
