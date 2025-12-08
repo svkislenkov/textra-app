@@ -6,128 +6,317 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-// Twilio Conversations API
+// Twilio configuration
 const MOCK_MODE = !Deno.env.get("TWILIO_ACCOUNT_SID");
-const ACC = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
-const TOK = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
+const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
+const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
+const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_PHONE_NUMBER") || "";
 
-function toLocalHM(dateUTC: Date, tz: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit"
-  }).formatToParts(dateUTC);
-  const h = parts.find(p => p.type === "hour")?.value ?? "00";
-  const m = parts.find(p => p.type === "minute")?.value ?? "00";
-  return `${h}:${m}`;
+const TIMEZONE = "America/New_York";
+
+// Helper: Get current time in HH:MM format in Eastern Time
+function getCurrentTimeET(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const hour = parts.find(p => p.type === "hour")?.value || "00";
+  const minute = parts.find(p => p.type === "minute")?.value || "00";
+  return `${hour}:${minute}`;
 }
-function toLocalDateISO(dateUTC: Date, tz: string) {
+
+// Helper: Get current date in YYYY-MM-DD format in Eastern Time
+function getCurrentDateET(): string {
+  const now = new Date();
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit"
-  }).format(dateUTC); // YYYY-MM-DD
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(now);
 }
 
-async function sendToConversation(conversationSid: string, body: string) {
+// Helper: Get current day of week (0=Sunday, 6=Saturday) in Eastern Time
+function getCurrentDayOfWeekET(): number {
+  const now = new Date();
+  const dateStr = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIMEZONE,
+    weekday: "long"
+  }).format(now);
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return days.indexOf(dateStr);
+}
+
+// Helper: Get current day of month in Eastern Time
+function getCurrentDayOfMonthET(): number {
+  const now = new Date();
+  const dayStr = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIMEZONE,
+    day: "numeric"
+  }).format(now);
+  return parseInt(dayStr, 10);
+}
+
+// Helper: Send SMS via Twilio
+async function sendSMS(to: string, body: string): Promise<{ sid: string; success: boolean; error?: string }> {
   if (MOCK_MODE) {
-    console.log(`[MOCK MODE] Would send to conversation ${conversationSid}:`);
-    console.log(body);
-    return { sid: `IM${crypto.randomUUID().replace(/-/g, '').substring(0, 32)}` };
+    console.log(`[MOCK MODE] SMS to ${to}: ${body}`);
+    return { sid: `SM${crypto.randomUUID().replace(/-/g, '').substring(0, 32)}`, success: true };
   }
 
-  const url = `https://conversations.twilio.com/v1/Conversations/${conversationSid}/Messages`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: "Basic " + btoa(`${ACC}:${TOK}`),
-      "content-type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({ Body: body }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json(); // { sid: 'IM...', ... }
+  try {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
+    const params = new URLSearchParams({
+      To: to,
+      From: TWILIO_PHONE_NUMBER,
+      Body: body,
+    });
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Twilio error: ${errorText}`);
+      return { sid: "", success: false, error: errorText };
+    }
+
+    const result = await response.json();
+    return { sid: result.sid, success: true };
+  } catch (error) {
+    console.error(`Error sending SMS:`, error);
+    return { sid: "", success: false, error: String(error) };
+  }
+}
+
+// Helper: Replace template variables in message
+function replaceTemplateVars(template: string, name: string, task: string): string {
+  return template
+    .replace(/{name}/g, name)
+    .replace(/{task}/g, task);
+}
+
+// Helper: Get task description from bot
+function getTaskDescription(bot: any): string {
+  // If custom type with message_template, use that
+  if (bot.type === "Custom Type" && bot.message_template) {
+    return bot.message_template;
+  }
+  // Otherwise use the type
+  return bot.type || "Complete task";
 }
 
 Deno.serve(async () => {
-  const now = new Date();
+  try {
+    const currentTime = getCurrentTimeET();
+    const currentDate = getCurrentDateET();
+    const currentDayOfWeek = getCurrentDayOfWeekET();
+    const currentDayOfMonth = getCurrentDayOfMonthET();
 
-  // Load active bots
-  const { data: bots, error } = await supabase
-    .from("bots")
-    .select("id, name, timezone, schedule_time_local, last_sent_date, conversation_sid")
-    .eq("is_active", true);
-  if (error) return new Response(error.message, { status: 500 });
+    console.log(`Running at ${currentTime} ET on ${currentDate}`);
 
-  const due = (bots ?? []).filter((b: any) =>
-    toLocalHM(now, b.timezone) === b.schedule_time_local &&
-    toLocalDateISO(now, b.timezone) !== String(b.last_sent_date || "")
-  );
+    // Fetch all active bots
+    const { data: bots, error: botsError } = await supabase
+      .from("bots")
+      .select("*")
+      .eq("is_active", true);
 
-  const results: Array<{ botId: string; sent: boolean }> = [];
-
-  for (const bot of due) {
-    const botId = bot.id;
-
-    // Skip bots without conversation_sid
-    if (!bot.conversation_sid) {
-      console.warn(`Bot ${botId} missing conversation_sid, skipping`);
-      continue;
+    if (botsError) {
+      console.error("Error fetching bots:", botsError);
+      return new Response(JSON.stringify({ error: botsError.message }), { status: 500 });
     }
 
-    // Pull mapping
-    const [{ data: members }, { data: chores }, { data: assigns }] = await Promise.all([
-      supabase.from("bot_members")
-        .select("id, display_name, phone_e164, is_opted_in")
-        .eq("bot_id", botId)
-        .eq("is_opted_in", true),
-      supabase.from("chores")
-        .select("id, title")
-        .eq("bot_id", botId),
-      supabase.from("assignments")
-        .select("id, member_id, chore_id, position_index")
-        .eq("bot_id", botId)
-        .order("position_index", { ascending: true }),
-    ]);
+    if (!bots || bots.length === 0) {
+      return new Response(JSON.stringify({ message: "No active bots found", processed: [] }), { status: 200 });
+    }
 
-    if (!members?.length || !chores?.length || !assigns?.length) continue;
+    // Filter bots that are due to run
+    const dueBots = bots.filter(bot => {
+      // Skip if already run today
+      if (bot.last_sent_date === currentDate) {
+        return false;
+      }
 
-    const membById = new Map(members.map(m => [m.id, m] as const));
-    const choreById = new Map(chores.map(c => [c.id, c] as const));
-    const mapping = assigns.map(a => ({ member: membById.get(a.member_id)!, chore: choreById.get(a.chore_id)! }));
+      // Parse bot time (stored as UTC ISO string, convert to Eastern Time)
+      const botTime = new Date(bot.time);
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: TIMEZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(botTime);
+      const botHour = parts.find(p => p.type === "hour")?.value || "00";
+      const botMinute = parts.find(p => p.type === "minute")?.value || "00";
+      const botTimeStr = `${botHour}:${botMinute}`;
 
-    const header = `${bot.name} — Today's chores:`;
-    const lines = mapping.map(x => `• ${x.member.display_name} — ${x.chore.title}`);
-    const body = `${header}\n${lines.join("\n")}\n\nReply STOP to opt out.`;
+      // Check if time matches
+      if (botTimeStr !== currentTime) {
+        return false;
+      }
 
-    // Send to Twilio Conversation (fans out to all participants)
-    const tw = await sendToConversation(bot.conversation_sid, body);
-    const twilioSid = tw.sid;
+      // Check frequency
+      if (bot.frequency === "Daily") {
+        return true;
+      } else if (bot.frequency === "Weekly") {
+        // Map day_of_week string to number
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const botDayOfWeek = days.indexOf(bot.day_of_week);
+        return botDayOfWeek === currentDayOfWeek;
+      } else if (bot.frequency === "Monthly") {
+        return bot.day_of_month === currentDayOfMonth;
+      }
 
-    // Log the conversation send
-    await supabase.from("message_log").insert({
-      bot_id: botId,
-      twilio_sid: twilioSid,
-      to_phone: `CONV:${bot.conversation_sid}`,
-      status: "sent",
-      body,
+      return false;
     });
 
-    // Stamp last_sent_date (bot’s local day)
-    await supabase
-      .from("bots")
-      .update({ last_sent_date: toLocalDateISO(now, bot.timezone) })
-      .eq("id", botId);
+    console.log(`Found ${dueBots.length} bots due to run`);
 
-    // Rotate indices modulo N
-    const N = assigns.length;
-    for (const a of assigns) {
+    const results = [];
+
+    // Process each due bot
+    for (const bot of dueBots) {
+      console.log(`Processing bot: ${bot.name} (${bot.id})`);
+
+      // Get all groups this bot is assigned to
+      const { data: botGroups, error: botGroupsError } = await supabase
+        .from("bot_groups")
+        .select(`
+          *,
+          groups (
+            id,
+            name
+          )
+        `)
+        .eq("bot_id", bot.id);
+
+      if (botGroupsError) {
+        console.error(`Error fetching groups for bot ${bot.id}:`, botGroupsError);
+        continue;
+      }
+
+      if (!botGroups || botGroups.length === 0) {
+        console.log(`Bot ${bot.name} has no assigned groups, skipping`);
+        continue;
+      }
+
+      // Process each group
+      for (const botGroup of botGroups) {
+        const groupId = botGroup.group_id;
+        console.log(`Processing group: ${botGroup.groups.name} (${groupId})`);
+
+        // Get accepted members of this group
+        const { data: members, error: membersError } = await supabase
+          .from("group_members")
+          .select("*")
+          .eq("group_id", groupId)
+          .eq("invitation_status", "accepted")
+          .order("name");
+
+        if (membersError) {
+          console.error(`Error fetching members for group ${groupId}:`, membersError);
+          continue;
+        }
+
+        if (!members || members.length === 0) {
+          console.log(`Group ${groupId} has no accepted members, skipping`);
+          continue;
+        }
+
+        // Determine who is assigned this time (rotation logic)
+        const currentIndex = botGroup.current_member_index || 0;
+        const assignedMember = members[currentIndex % members.length];
+        const nextIndex = (currentIndex + 1) % members.length;
+
+        console.log(`Assigned member: ${assignedMember.name} (index ${currentIndex})`);
+
+        // Build message
+        const taskDescription = getTaskDescription(bot);
+        const assignedName = assignedMember.name;
+
+        // Message format: "Task - Person's turn"
+        // Support template variables if message_template exists
+        let message: string;
+        if (bot.type === "Custom Type" && bot.message_template) {
+          // Use template with variables replaced
+          message = replaceTemplateVars(bot.message_template, assignedName, taskDescription);
+        } else {
+          // Default format
+          message = `${taskDescription} - ${assignedName}'s turn`;
+        }
+
+        // Send SMS to all accepted members
+        for (const member of members) {
+          const smsResult = await sendSMS(member.phone_number, message);
+
+          // Log the message
+          await supabase.from("message_log").insert({
+            bot_id: bot.id,
+            to_phone: member.phone_number,
+            body: message,
+            status: smsResult.success ? "sent" : "failed",
+            twilio_sid: smsResult.sid,
+            error: smsResult.error || null,
+          });
+
+          console.log(`Sent SMS to ${member.name} (${member.phone_number}): ${smsResult.success ? 'success' : 'failed'}`);
+        }
+
+        // Update bot_groups rotation
+        await supabase
+          .from("bot_groups")
+          .update({
+            current_member_index: nextIndex,
+          })
+          .eq("id", botGroup.id);
+
+        results.push({
+          bot_id: bot.id,
+          bot_name: bot.name,
+          group_id: groupId,
+          group_name: botGroup.groups.name,
+          assigned_to: assignedMember.name,
+          members_notified: members.length,
+        });
+      }
+
+      // Update bot's last_sent_date
       await supabase
-        .from("assignments")
-        .update({ position_index: (a.position_index + 1) % N })
-        .eq("id", a.id);
+        .from("bots")
+        .update({ last_sent_date: currentDate })
+        .eq("id", bot.id);
     }
 
-    results.push({ botId, sent: true });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        time: currentTime,
+        date: currentDate,
+        processed: results,
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    return new Response(
+      JSON.stringify({ error: String(error) }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 500,
+      }
+    );
   }
-
-  return new Response(JSON.stringify({ ran: results }), {
-    headers: { "content-type": "application/json" },
-  });
 });
