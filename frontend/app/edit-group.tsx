@@ -48,6 +48,12 @@ export default function EditGroupScreen() {
   const [assignedBots, setAssignedBots] = useState<Bot[]>([]);
   const [showBotPicker, setShowBotPicker] = useState(false);
 
+  const normalizePhoneNumber = (phone: string): string => {
+    // Remove all non-digit characters and extract last 10 digits
+    const cleaned = phone.replace(/\D/g, '');
+    return cleaned.slice(-10); // Take last 10 digits (removes country code if present)
+  };
+
   const formatPhoneNumber = (text: string) => {
     // Remove all non-digit characters
     const cleaned = text.replace(/\D/g, '');
@@ -256,11 +262,15 @@ export default function EditGroupScreen() {
       return;
     }
 
-    const phoneNumber = contact.phoneNumbers[0].number || '';
+    const rawPhoneNumber = contact.phoneNumbers[0].number || '';
+    const normalizedPhone = normalizePhoneNumber(rawPhoneNumber);
+
+    // Format for display: (XXX) XXX-XXXX
+    const formattedPhone = `(${normalizedPhone.slice(0, 3)}) ${normalizedPhone.slice(3, 6)}-${normalizedPhone.slice(6)}`;
     const name = contact.name || 'Unknown';
 
-    // Check if already added
-    if (members.some(m => m.phone_number === phoneNumber)) {
+    // Check if already added (compare normalized versions)
+    if (members.some(m => normalizePhoneNumber(m.phone_number) === normalizedPhone)) {
       Alert.alert('Already Added', 'This contact is already in the group.');
       return;
     }
@@ -268,7 +278,7 @@ export default function EditGroupScreen() {
     const newMember: Member = {
       id: 'temp_' + Date.now().toString(),
       name,
-      phone_number: phoneNumber,
+      phone_number: formattedPhone,
       user_id: null,
     };
 
@@ -453,11 +463,16 @@ export default function EditGroupScreen() {
 
         // Check and auto-accept existing users
         for (const member of toAdd) {
-          const { data: existingUser } = await supabase
+          const normalizedMemberPhone = normalizePhoneNumber(member.phone_number);
+
+          // Query all user profiles and find match by normalized phone
+          const { data: allProfiles } = await supabase
             .from('user_profiles')
-            .select('user_id, name')
-            .eq('phone_number', member.phone_number)
-            .single();
+            .select('user_id, name, phone_number');
+
+          const existingUser = allProfiles?.find(profile =>
+            normalizePhoneNumber(profile.phone_number) === normalizedMemberPhone
+          );
 
           if (existingUser) {
             // Auto-accept: Create group_member

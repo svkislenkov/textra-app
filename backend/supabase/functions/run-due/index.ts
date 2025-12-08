@@ -262,6 +262,7 @@ Deno.serve(async () => {
           // Log the message
           await supabase.from("message_log").insert({
             bot_id: bot.id,
+            group_id: groupId,
             to_phone: member.phone_number,
             body: message,
             status: smsResult.success ? "sent" : "failed",
