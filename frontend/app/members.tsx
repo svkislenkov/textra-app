@@ -1,6 +1,7 @@
 import { useLocalSearchParams, router } from "expo-router";
 import { useState } from "react";
-import { View, Text, TextInput, Button, FlatList, Alert } from "react-native";
+import { View, Text, TextInput, Button, FlatList } from "react-native";
+import { showAlert } from "../lib/alert";
 export default function Members() {
   const { botId, botName } = useLocalSearchParams<{ botId: string; botName: string }>();
   const [name, setName] = useState(""); const [phone, setPhone] = useState("");
@@ -12,7 +13,7 @@ export default function Members() {
       const r = await fetch(`${base}/bot-members`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ botId, members }) });
       if (!r.ok) throw new Error(await r.text());
       router.push({ pathname: "/chores", params: { botId, botName } });
-    } catch (e:any) { Alert.alert("Save failed", String(e)); }
+    } catch (e:any) { showAlert("Save failed", String(e)); }
   }
   return (
     <View style={{ padding:20, gap:12 }}>

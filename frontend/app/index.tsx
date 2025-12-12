@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, Alert, ScrollView, Keyboard } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { showAlert } from "../lib/alert";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -20,7 +21,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Please enter both email and password");
+      showAlert("Error", "Please enter both email and password");
       return;
     }
 
@@ -33,7 +34,7 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        Alert.alert("Login Error", error.message);
+        showAlert("Login Error", error.message);
         return;
       }
 
@@ -41,7 +42,7 @@ export default function LoginScreen() {
         router.replace("/home");
       }
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
     } finally {
       setLoading(false);

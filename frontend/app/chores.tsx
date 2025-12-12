@@ -1,6 +1,7 @@
 import { useLocalSearchParams, router } from "expo-router";
 import { useState } from "react";
-import { View, Text, TextInput, Button, FlatList, Alert } from "react-native";
+import { View, Text, TextInput, Button, FlatList } from "react-native";
+import { showAlert } from "../lib/alert";
 export default function Chores() {
   const { botId, botName } = useLocalSearchParams<{ botId: string; botName: string }>();
   const [title, setTitle] = useState(""); const [chores, setChores] = useState<{ title: string }[]>([]);
@@ -11,7 +12,7 @@ export default function Chores() {
       const r = await fetch(`${base}/bot-chores`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ botId, chores }) });
       if (!r.ok) throw new Error(await r.text());
       router.push({ pathname: "/preview", params: { botId, botName } });
-    } catch (e:any) { Alert.alert("Save failed", String(e)); }
+    } catch (e:any) { showAlert("Save failed", String(e)); }
   }
   return (
     <View style={{ padding:20, gap:12 }}>

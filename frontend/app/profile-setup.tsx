@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, SafeAreaView, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { showAlert } from "../lib/alert";
 
 export default function ProfileSetupScreen() {
   const [name, setName] = useState("");
@@ -40,7 +41,7 @@ export default function ProfileSetupScreen() {
         .eq('status', 'pending');
 
       if (invitations && invitations.length > 0) {
-        Alert.alert(
+        showAlert(
           'Group Invitations',
           `You have ${invitations.length} pending group invitation(s). View them now?`,
           [
@@ -67,7 +68,7 @@ export default function ProfileSetupScreen() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        Alert.alert("Error", "You must be logged in to set up your profile");
+        showAlert("Error", "You must be logged in to set up your profile");
         return;
       }
 
@@ -90,7 +91,7 @@ export default function ProfileSetupScreen() {
           .eq("user_id", user.id);
 
         if (error) {
-          Alert.alert("Error", error.message);
+          showAlert("Error", error.message);
           return;
         }
       } else {
@@ -104,7 +105,7 @@ export default function ProfileSetupScreen() {
           });
 
         if (error) {
-          Alert.alert("Error", error.message);
+          showAlert("Error", error.message);
           return;
         }
       }
@@ -112,14 +113,14 @@ export default function ProfileSetupScreen() {
       // Check for pending invitations
       await checkPendingInvitations(user.id, phoneNumber.trim());
 
-      Alert.alert("Success", "Profile saved successfully!", [
+      showAlert("Success", "Profile saved successfully!", [
         {
           text: "OK",
           onPress: () => router.back(),
         },
       ]);
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
     } finally {
       setLoading(false);
@@ -128,7 +129,7 @@ export default function ProfileSetupScreen() {
 
   async function handleSaveProfile() {
     if (!name.trim() || !phoneNumber.trim()) {
-      Alert.alert("Error", "Please enter both name and phone number");
+      showAlert("Error", "Please enter both name and phone number");
       return;
     }
 
@@ -144,7 +145,7 @@ export default function ProfileSetupScreen() {
 
       // Show SMS consent for new users or users without a phone number
       if (!existingProfile || !existingProfile.phone_number) {
-        Alert.alert(
+        showAlert(
           "SMS Consent",
           "By providing your phone number, you agree to receive SMS reminders/notifications from Textra. Message frequency varies based on the reminders you create. Message and data rates may apply. Reply STOP to opt-out. Reply HELP for help.",
           [

@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, Alert, ScrollView, Keyboard } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { showAlert } from "../lib/alert";
+import Constants from 'expo-constants';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState("");
@@ -12,37 +14,52 @@ export default function SignUpScreen() {
 
   async function handleSignUp() {
     if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
-      Alert.alert("Error", "Please fill in all fields");
+      showAlert("Error", "Please fill in all fields");
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      showAlert("Error", "Passwords do not match");
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long");
+      showAlert("Error", "Password must be at least 6 characters long");
       return;
     }
 
     setLoading(true);
 
     try {
+      // Get the redirect URL based on platform
+      let redirectUrl;
+      if (Platform.OS === 'web') {
+        // Use environment variable if available, otherwise fallback to window.location.origin
+        const siteUrl = process.env.EXPO_PUBLIC_SITE_URL;
+        redirectUrl = siteUrl
+          ? `${siteUrl}/email-confirmed`
+          : `${window.location.origin}/email-confirmed`;
+      } else {
+        redirectUrl = 'textra://email-confirmed';
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: password,
+        options: {
+          emailRedirectTo: redirectUrl,
+        },
       });
 
       if (error) {
-        Alert.alert("Sign Up Error", error.message);
+        showAlert("Sign Up Error", error.message);
         return;
       }
 
       if (data.user) {
-        Alert.alert(
-          "Success",
-          "Account created successfully! You can now sign in.",
+        showAlert(
+          "Check Your Email",
+          "We've sent you a confirmation email. Please check your inbox and click the confirmation link to verify your account before signing in.",
           [
             {
               text: "OK",
@@ -52,7 +69,7 @@ export default function SignUpScreen() {
         );
       }
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
     } finally {
       setLoading(false);

@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { showAlert } from "../lib/alert";
 
 interface Invitation {
   id: string;
@@ -34,7 +35,7 @@ export default function PendingInvitationsScreen() {
         .single();
 
       if (!profile?.phone_number) {
-        Alert.alert('Error', 'User profile not found. Please set up your profile first.');
+        showAlert('Error', 'User profile not found. Please set up your profile first.');
         return;
       }
 
@@ -50,7 +51,7 @@ export default function PendingInvitationsScreen() {
 
       if (error) {
         console.error('Error fetching invitations:', error);
-        Alert.alert('Error', 'Failed to load invitations');
+        showAlert('Error', 'Failed to load invitations');
         return;
       }
 
@@ -60,7 +61,7 @@ export default function PendingInvitationsScreen() {
       setInvitations(data || []);
     } catch (error) {
       console.error('Error fetching invitations:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
+      showAlert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ export default function PendingInvitationsScreen() {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        Alert.alert('Error', 'You must be logged in');
+        showAlert('Error', 'You must be logged in');
         return;
       }
 
@@ -99,11 +100,11 @@ export default function PendingInvitationsScreen() {
       const result = await response.json();
 
       if (!response.ok) {
-        Alert.alert('Error', result.error || 'Failed to accept invitation');
+        showAlert('Error', result.error || 'Failed to accept invitation');
         return;
       }
 
-      Alert.alert(
+      showAlert(
         'Success',
         `You've joined ${invitation.group_name}!`,
         [
@@ -115,7 +116,7 @@ export default function PendingInvitationsScreen() {
       );
     } catch (error) {
       console.error('Error accepting invitation:', error);
-      Alert.alert('Error', 'Failed to accept invitation');
+      showAlert('Error', 'Failed to accept invitation');
     } finally {
       setProcessingId(null);
     }
@@ -139,7 +140,7 @@ export default function PendingInvitationsScreen() {
               const { data: { session } } = await supabase.auth.getSession();
 
               if (!session) {
-                Alert.alert('Error', 'You must be logged in');
+                showAlert('Error', 'You must be logged in');
                 return;
               }
 
@@ -160,14 +161,14 @@ export default function PendingInvitationsScreen() {
               const result = await response.json();
 
               if (!response.ok) {
-                Alert.alert('Error', result.error || 'Failed to decline invitation');
+                showAlert('Error', result.error || 'Failed to decline invitation');
                 return;
               }
 
               fetchInvitations();
             } catch (error) {
               console.error('Error declining invitation:', error);
-              Alert.alert('Error', 'Failed to decline invitation');
+              showAlert('Error', 'Failed to decline invitation');
             } finally {
               setProcessingId(null);
             }

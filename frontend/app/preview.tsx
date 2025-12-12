@@ -1,5 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
-import { View, Text, Button, Alert } from "react-native";
+import { View, Text, Button } from "react-native";
+import { showAlert } from "../lib/alert";
 export default function Preview() {
   const { botId, botName } = useLocalSearchParams<{ botId: string; botName: string }>();
   const base = process.env.EXPO_PUBLIC_FUNCS_URL!;
@@ -8,7 +9,7 @@ export default function Preview() {
       const r = await fetch(`${base}/send-test`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ botId }) });
       if (!r.ok) throw new Error(await r.text());
       const out = await r.json();
-      Alert.alert("Sent", `${out.sent} messages queued`);
+      showAlert("Sent", `${out.sent} messages queued`);
     } catch (e:any) { Alert.alert("Send failed", String(e)); }
   }
   return (

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView, ScrollView, useWindowDimensions } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { useCallback } from "react";
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
+import { showAlert } from "../lib/alert";
 
 interface Bot {
   id: string;
@@ -308,12 +309,12 @@ export default function HomeScreen() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
-        Alert.alert("Error", error.message);
+        showAlert("Error", error.message);
       } else {
         router.replace("/");
       }
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
     } finally {
       setLoading(false);
@@ -325,7 +326,7 @@ export default function HomeScreen() {
     const helpMessage = "First, create a notification you want your group to receive. Next, create a group and apply that notification to it. Messages to that group will then be sent out based on your notification specifications.";
     // ⚠️ END OF MESSAGE TO MODIFY ⚠️
 
-    Alert.alert("How to Use Textra", helpMessage);
+    showAlert("How to Use Textra", helpMessage);
   };
 
   return (

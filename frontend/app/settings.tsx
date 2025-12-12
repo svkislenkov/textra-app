@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { showAlert } from "../lib/alert";
 
 export default function SettingsScreen() {
   const [userEmail, setUserEmail] = useState("");
@@ -24,12 +25,12 @@ export default function SettingsScreen() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
-        Alert.alert("Error", error.message);
+        showAlert("Error", error.message);
       } else {
         router.replace("/");
       }
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
     } finally {
       setLoading(false);
@@ -96,7 +97,7 @@ export default function SettingsScreen() {
             <TouchableOpacity
               style={[styles.actionButton, styles.dangerButton]}
               onPress={() => {
-                Alert.alert(
+                showAlert(
                   "Delete Account",
                   "Are you sure you want to delete your account? This action cannot be undone.",
                   [
