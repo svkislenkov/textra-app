@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, SafeAreaView, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, SafeAreaView, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../lib/supabase";
 import WebTimePicker from "../components/WebTimePicker";
+import { showAlert } from "../lib/alert";
 
 export default function EditBotScreen() {
   const { id } = useLocalSearchParams();
@@ -31,8 +32,8 @@ export default function EditBotScreen() {
 
   async function fetchBot() {
     if (!id) {
-      Alert.alert("Error", "No bot ID provided");
-      router.back();
+      showAlert("Error", "No bot ID provided");
+      router.replace("/home");
       return;
     }
 
@@ -44,8 +45,8 @@ export default function EditBotScreen() {
         .single();
 
       if (error) {
-        Alert.alert("Error", error.message);
-        router.back();
+        showAlert("Error", error.message);
+        router.replace("/home");
         return;
       }
 
@@ -60,9 +61,9 @@ export default function EditBotScreen() {
         setTime(new Date(data.time));
       }
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
-      router.back();
+      router.replace("/home");
     } finally {
       setFetching(false);
     }
@@ -83,12 +84,12 @@ export default function EditBotScreen() {
 
   async function handleUpdateBot() {
     if (!name.trim()) {
-      Alert.alert("Error", "Please enter a notification name");
+      showAlert("Error", "Please enter a notification name");
       return;
     }
 
     if (choreType === "Custom Type" && !messageTemplate.trim()) {
-      Alert.alert("Error", "Please provide a message template for Custom Type");
+      showAlert("Error", "Please provide a message template for Custom Type");
       return;
     }
 
@@ -112,18 +113,18 @@ export default function EditBotScreen() {
         .eq("id", id);
 
       if (error) {
-        Alert.alert("Error", error.message);
+        showAlert("Error", error.message);
         return;
       }
 
-      Alert.alert("Success", "Notification updated successfully!", [
+      showAlert("Success", "Notification updated successfully!", [
         {
           text: "OK",
-          onPress: () => router.back(),
+          onPress: () => router.replace("/home"),
         },
       ]);
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
     } finally {
       setLoading(false);
@@ -131,7 +132,7 @@ export default function EditBotScreen() {
   }
 
   async function handleDeleteBot() {
-    Alert.alert(
+    showAlert(
       "Delete Notification",
       "Are you sure you want to delete this notification?",
       [
@@ -151,18 +152,18 @@ export default function EditBotScreen() {
                 .eq("id", id);
 
               if (error) {
-                Alert.alert("Error", error.message);
+                showAlert("Error", error.message);
                 return;
               }
 
-              Alert.alert("Success", "Notification deleted successfully!", [
+              showAlert("Success", "Notification deleted successfully!", [
                 {
                   text: "OK",
-                  onPress: () => router.back(),
+                  onPress: () => router.replace("/home"),
                 },
               ]);
             } catch (error) {
-              Alert.alert("Error", "An unexpected error occurred");
+              showAlert("Error", "An unexpected error occurred");
               console.error(error);
             } finally {
               setLoading(false);
@@ -380,31 +381,42 @@ export default function EditBotScreen() {
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Time</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setShowTimePicker(!showTimePicker)}
-                disabled={loading}
-              >
-                <Text style={styles.timeText}>{formatTime(time)}</Text>
-              </TouchableOpacity>
-              {showTimePicker && (
-                <View>
-                  <WebTimePicker
-                    value={time}
-                    mode="time"
-                    is24Hour={false}
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={handleTimeChange}
-                  />
-                  {Platform.OS === "ios" && (
-                    <TouchableOpacity
-                      style={styles.doneButton}
-                      onPress={() => setShowTimePicker(false)}
-                    >
-                      <Text style={styles.doneButtonText}>Done</Text>
-                    </TouchableOpacity>
+              {Platform.OS === "web" ? (
+                <WebTimePicker
+                  value={time}
+                  mode="time"
+                  is24Hour={false}
+                  onChange={handleTimeChange}
+                />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.input}
+                    onPress={() => setShowTimePicker(!showTimePicker)}
+                    disabled={loading}
+                  >
+                    <Text style={styles.timeText}>{formatTime(time)}</Text>
+                  </TouchableOpacity>
+                  {showTimePicker && (
+                    <View>
+                      <WebTimePicker
+                        value={time}
+                        mode="time"
+                        is24Hour={false}
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={handleTimeChange}
+                      />
+                      {Platform.OS === "ios" && (
+                        <TouchableOpacity
+                          style={styles.doneButton}
+                          onPress={() => setShowTimePicker(false)}
+                        >
+                          <Text style={styles.doneButtonText}>Done</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   )}
-                </View>
+                </>
               )}
             </View>
 

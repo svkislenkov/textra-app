@@ -7,6 +7,7 @@ interface WebTimePickerProps {
   mode?: "date" | "time" | "datetime" | "countdown";
   is24Hour?: boolean;
   display?: "default" | "spinner" | "compact" | "inline";
+  onClose?: () => void;
 }
 
 export default function WebTimePicker({
@@ -15,6 +16,7 @@ export default function WebTimePicker({
   mode = "time",
   is24Hour = false,
   display = "default",
+  onClose,
 }: WebTimePickerProps) {
   if (Platform.OS === "web") {
     // Format time as HH:mm for HTML input
@@ -23,10 +25,14 @@ export default function WebTimePicker({
     const timeString = `${hours}:${minutes}`;
 
     const handleWebTimeChange = (e: any) => {
+      if (!e.target.value) return;
+
       const [hours, minutes] = e.target.value.split(":");
       const newDate = new Date(value);
       newDate.setHours(parseInt(hours, 10));
       newDate.setMinutes(parseInt(minutes, 10));
+
+      // Call onChange with the new date
       onChange(e, newDate);
     };
 
@@ -45,6 +51,7 @@ export default function WebTimePicker({
             fontSize: "16px",
             width: "100%",
             fontFamily: "inherit",
+            cursor: "pointer",
           }}
         />
       </View>
@@ -66,5 +73,6 @@ export default function WebTimePicker({
 const styles = StyleSheet.create({
   webContainer: {
     width: "100%",
+    marginTop: 10,
   },
 });

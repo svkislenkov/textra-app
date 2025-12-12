@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, SafeAreaView, ScrollView, Modal, FlatList } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, SafeAreaView, ScrollView, Modal, FlatList } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { sendFunctionAddedSMS } from "../lib/notifications";
 import * as Contacts from 'expo-contacts';
+import { showAlert } from "../lib/alert";
 
 interface Member {
   id: string;
@@ -125,7 +126,7 @@ export default function CreateGroupScreen() {
   async function requestContactPermission() {
     const { status } = await Contacts.requestPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need access to your contacts to import them.');
+      showAlert('Permission Denied', 'We need access to your contacts to import them.');
       return false;
     }
     return true;
@@ -145,10 +146,10 @@ export default function CreateGroupScreen() {
         setContacts(data);
         setShowContactPicker(true);
       } else {
-        Alert.alert('No Contacts', 'No contacts found on your device.');
+        showAlert('No Contacts', 'No contacts found on your device.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to load contacts');
+      showAlert('Error', 'Failed to load contacts');
       console.error(error);
     } finally {
       setLoadingContacts(false);
@@ -157,7 +158,7 @@ export default function CreateGroupScreen() {
 
   async function selectContact(contact: Contacts.Contact) {
     if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) {
-      Alert.alert('No Phone Number', 'This contact does not have a phone number.');
+      showAlert('No Phone Number', 'This contact does not have a phone number.');
       return;
     }
 
@@ -170,7 +171,7 @@ export default function CreateGroupScreen() {
 
     // Check if already added (compare normalized versions)
     if (members.some(m => normalizePhoneNumber(m.phone_number) === normalizedPhone)) {
-      Alert.alert('Already Added', 'This contact is already in the group.');
+      showAlert('Already Added', 'This contact is already in the group.');
       return;
     }
 
@@ -197,7 +198,7 @@ export default function CreateGroupScreen() {
 
   async function addManualMember() {
     if (!manualName.trim() || !manualPhone.trim()) {
-      Alert.alert('Error', 'Please enter both name and phone number');
+      showAlert('Error', 'Please enter both name and phone number');
       return;
     }
 
@@ -205,7 +206,7 @@ export default function CreateGroupScreen() {
 
     // Check if already added (compare normalized versions)
     if (members.some(m => normalizePhoneNumber(m.phone_number) === normalizedPhone)) {
-      Alert.alert('Already Added', 'This phone number is already in the group.');
+      showAlert('Already Added', 'This phone number is already in the group.');
       return;
     }
 
@@ -238,7 +239,7 @@ export default function CreateGroupScreen() {
   function addBot(botId: string) {
     // Check if bot is already selected
     if (selectedBots.some(b => b.id === botId)) {
-      Alert.alert('Already Added', 'This bot is already assigned to the group.');
+      showAlert('Already Added', 'This bot is already assigned to the group.');
       return;
     }
 
@@ -255,7 +256,7 @@ export default function CreateGroupScreen() {
 
   async function handleCreateGroup() {
     if (!groupName.trim()) {
-      Alert.alert('Error', 'Please enter a group name');
+      showAlert('Error', 'Please enter a group name');
       return;
     }
 
@@ -265,7 +266,7 @@ export default function CreateGroupScreen() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        Alert.alert('Error', 'You must be logged in to create a group');
+        showAlert('Error', 'You must be logged in to create a group');
         return;
       }
 
@@ -277,7 +278,7 @@ export default function CreateGroupScreen() {
         .single();
 
       if (profileError || !profile) {
-        Alert.alert(
+        showAlert(
           'Profile Required',
           'You need to set up your profile before creating a group.',
           [
@@ -309,7 +310,7 @@ export default function CreateGroupScreen() {
         .single();
 
       if (groupError) {
-        Alert.alert('Error', groupError.message);
+        showAlert('Error', groupError.message);
         return;
       }
 
@@ -325,7 +326,7 @@ export default function CreateGroupScreen() {
         });
 
       if (ownerError) {
-        Alert.alert('Error', ownerError.message);
+        showAlert('Error', ownerError.message);
         return;
       }
 
@@ -345,7 +346,7 @@ export default function CreateGroupScreen() {
           .insert(invitationInserts);
 
         if (invitationsError) {
-          Alert.alert('Error', invitationsError.message);
+          showAlert('Error', invitationsError.message);
           return;
         }
 
@@ -399,7 +400,7 @@ export default function CreateGroupScreen() {
           .insert(botInserts);
 
         if (botsError) {
-          Alert.alert('Error', botsError.message);
+          showAlert('Error', botsError.message);
           return;
         }
 
@@ -418,14 +419,14 @@ export default function CreateGroupScreen() {
         ? `Group created! Invitations sent to ${members.length} member(s). They'll need to accept before receiving messages.`
         : 'Group created successfully!';
 
-      Alert.alert('Success', successMessage, [
+      showAlert('Success', successMessage, [
         {
           text: 'OK',
-          onPress: () => router.back(),
+          onPress: () => router.replace("/home"),
         },
       ]);
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      showAlert('Error', 'An unexpected error occurred');
       console.error(error);
     } finally {
       setLoading(false);
@@ -487,7 +488,7 @@ export default function CreateGroupScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={styles.actionButtonText}>
-                    {loadingContacts ? 'Loading...' : 'Import from Contacts'}
+                    {loadingContacts ? 'Loading...' : 'Import from Contacts (Not available on web)'}
                   </Text>
                 </TouchableOpacity>
 

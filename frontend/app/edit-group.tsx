@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, SafeAreaView, ScrollView, Modal, FlatList } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, SafeAreaView, ScrollView, Modal, FlatList } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { sendFunctionAddedSMS } from "../lib/notifications";
 import * as Contacts from 'expo-contacts';
+import { showAlert } from "../lib/alert";
 
 interface Member {
   id: string;
@@ -82,8 +83,8 @@ export default function EditGroupScreen() {
 
   async function fetchGroup() {
     if (!id) {
-      Alert.alert("Error", "No group ID provided");
-      router.back();
+      showAlert("Error", "No group ID provided");
+      router.replace("/home");
       return;
     }
 
@@ -113,8 +114,8 @@ export default function EditGroupScreen() {
         .single();
 
       if (groupError) {
-        Alert.alert('Error', groupError.message);
-        router.back();
+        showAlert('Error', groupError.message);
+        router.replace("/home");
         return;
       }
 
@@ -189,9 +190,9 @@ export default function EditGroupScreen() {
       // Fetch all available bots
       fetchAvailableBots();
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      showAlert('Error', 'An unexpected error occurred');
       console.error(error);
-      router.back();
+      router.replace("/home");
     } finally {
       setFetching(false);
     }
@@ -226,7 +227,7 @@ export default function EditGroupScreen() {
   async function requestContactPermission() {
     const { status } = await Contacts.requestPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need access to your contacts to import them.');
+      showAlert('Permission Denied', 'We need access to your contacts to import them.');
       return false;
     }
     return true;
@@ -246,10 +247,10 @@ export default function EditGroupScreen() {
         setContacts(data);
         setShowContactPicker(true);
       } else {
-        Alert.alert('No Contacts', 'No contacts found on your device.');
+        showAlert('No Contacts', 'No contacts found on your device.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to load contacts');
+      showAlert('Error', 'Failed to load contacts');
       console.error(error);
     } finally {
       setLoadingContacts(false);
@@ -258,7 +259,7 @@ export default function EditGroupScreen() {
 
   function selectContact(contact: Contacts.Contact) {
     if (!contact.phoneNumbers || contact.phoneNumbers.length === 0) {
-      Alert.alert('No Phone Number', 'This contact does not have a phone number.');
+      showAlert('No Phone Number', 'This contact does not have a phone number.');
       return;
     }
 
@@ -271,7 +272,7 @@ export default function EditGroupScreen() {
 
     // Check if already added (compare normalized versions)
     if (members.some(m => normalizePhoneNumber(m.phone_number) === normalizedPhone)) {
-      Alert.alert('Already Added', 'This contact is already in the group.');
+      showAlert('Already Added', 'This contact is already in the group.');
       return;
     }
 
@@ -289,13 +290,13 @@ export default function EditGroupScreen() {
 
   function addManualMember() {
     if (!manualName.trim() || !manualPhone.trim()) {
-      Alert.alert('Error', 'Please enter both name and phone number');
+      showAlert('Error', 'Please enter both name and phone number');
       return;
     }
 
     // Check if already added
     if (members.some(m => m.phone_number === manualPhone.trim())) {
-      Alert.alert('Already Added', 'This phone number is already in the group.');
+      showAlert('Already Added', 'This phone number is already in the group.');
       return;
     }
 
@@ -316,7 +317,7 @@ export default function EditGroupScreen() {
     // Check if this member is the current user
     const memberToRemove = members.find(m => m.id === memberId);
     if (memberToRemove?.user_id === currentUserId) {
-      Alert.alert('Cannot Remove Yourself', 'You cannot remove yourself from a group you created.');
+      showAlert('Cannot Remove Yourself', 'You cannot remove yourself from a group you created.');
       return;
     }
     setMembers(members.filter(m => m.id !== memberId));
@@ -325,7 +326,7 @@ export default function EditGroupScreen() {
   async function addBotToGroup(botId: string) {
     // Check if bot is already assigned
     if (assignedBots.some(b => b.id === botId)) {
-      Alert.alert('Already Assigned', 'This bot is already assigned to this group.');
+      showAlert('Already Assigned', 'This bot is already assigned to this group.');
       return;
     }
 
@@ -339,7 +340,7 @@ export default function EditGroupScreen() {
         });
 
       if (error) {
-        Alert.alert('Error', error.message);
+        showAlert('Error', error.message);
         return;
       }
 
@@ -357,7 +358,7 @@ export default function EditGroupScreen() {
         }
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to assign bot to group');
+      showAlert('Error', 'Failed to assign bot to group');
       console.error(error);
     }
   }
@@ -371,25 +372,25 @@ export default function EditGroupScreen() {
         .eq('group_id', id);
 
       if (error) {
-        Alert.alert('Error', error.message);
+        showAlert('Error', error.message);
         return;
       }
 
       setAssignedBots(assignedBots.filter(b => b.id !== botId));
     } catch (error) {
-      Alert.alert('Error', 'Failed to remove bot from group');
+      showAlert('Error', 'Failed to remove bot from group');
       console.error(error);
     }
   }
 
   async function handleUpdateGroup() {
     if (!groupName.trim()) {
-      Alert.alert('Error', 'Please enter a group name');
+      showAlert('Error', 'Please enter a group name');
       return;
     }
 
     if (members.length === 0) {
-      Alert.alert('Error', 'Please add at least one member to the group');
+      showAlert('Error', 'Please add at least one member to the group');
       return;
     }
 
@@ -406,14 +407,14 @@ export default function EditGroupScreen() {
         .eq('id', id);
 
       if (groupError) {
-        Alert.alert('Error', groupError.message);
+        showAlert('Error', groupError.message);
         return;
       }
 
       // Get current user for inviter_user_id
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert('Error', 'You must be logged in');
+        showAlert('Error', 'You must be logged in');
         return;
       }
 
@@ -457,7 +458,7 @@ export default function EditGroupScreen() {
           .insert(invitationInserts);
 
         if (invitationsError) {
-          Alert.alert('Error', invitationsError.message);
+          showAlert('Error', invitationsError.message);
           return;
         }
 
@@ -513,14 +514,14 @@ export default function EditGroupScreen() {
           .in('invitee_phone_number', toRemove);
       }
 
-      Alert.alert('Success', 'Group updated successfully!', [
+      showAlert('Success', 'Group updated successfully!', [
         {
           text: 'OK',
-          onPress: () => router.back(),
+          onPress: () => router.replace("/home"),
         },
       ]);
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      showAlert('Error', 'An unexpected error occurred');
       console.error(error);
     } finally {
       setLoading(false);
@@ -548,18 +549,18 @@ export default function EditGroupScreen() {
                 .eq('id', id);
 
               if (error) {
-                Alert.alert('Error', error.message);
+                showAlert('Error', error.message);
                 return;
               }
 
-              Alert.alert('Success', 'Group deleted successfully!', [
+              showAlert('Success', 'Group deleted successfully!', [
                 {
                   text: 'OK',
-                  onPress: () => router.back(),
+                  onPress: () => router.replace("/home"),
                 },
               ]);
             } catch (error) {
-              Alert.alert('Error', 'An unexpected error occurred');
+              showAlert('Error', 'An unexpected error occurred');
               console.error(error);
             } finally {
               setLoading(false);
@@ -640,7 +641,7 @@ export default function EditGroupScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={styles.actionButtonText}>
-                    {loadingContacts ? 'Loading...' : 'Import from Contacts'}
+                    {loadingContacts ? 'Loading...' : 'Import from Contacts (Not available on web)'}
                   </Text>
                 </TouchableOpacity>
 

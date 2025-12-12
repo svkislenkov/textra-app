@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, SafeAreaView, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, SafeAreaView, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import WebTimePicker from "../components/WebTimePicker";
+import { showAlert } from "../lib/alert";
 
 export default function CreateBotScreen() {
   const getDefaultTime = () => {
@@ -44,12 +45,12 @@ export default function CreateBotScreen() {
 
   async function handleCreateBot() {
     if (!name.trim()) {
-      Alert.alert("Error", "Please enter a notification name");
+      showAlert("Error", "Please enter a notification name");
       return;
     }
 
     if (choreType === "Custom Type" && !messageTemplate.trim()) {
-      Alert.alert("Error", "Please provide a message template for Custom Type");
+      showAlert("Error", "Please provide a message template for Custom Type");
       return;
     }
 
@@ -59,7 +60,7 @@ export default function CreateBotScreen() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        Alert.alert("Error", "You must be logged in to create a notification");
+        showAlert("Error", "You must be logged in to create a notification");
         return;
       }
 
@@ -77,18 +78,18 @@ export default function CreateBotScreen() {
       });
 
       if (error) {
-        Alert.alert("Error", error.message);
+        showAlert("Error", error.message);
         return;
       }
 
-      Alert.alert("Success", "Notification created successfully!", [
+      showAlert("Success", "Notification created successfully!", [
         {
           text: "OK",
-          onPress: () => router.back(),
+          onPress: () => router.replace("/home"),
         },
       ]);
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
+      showAlert("Error", "An unexpected error occurred");
       console.error(error);
     } finally {
       setLoading(false);
@@ -287,31 +288,42 @@ export default function CreateBotScreen() {
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Time</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setShowTimePicker(!showTimePicker)}
-                disabled={loading}
-              >
-                <Text style={styles.timeText}>{formatTime(time)}</Text>
-              </TouchableOpacity>
-              {showTimePicker && (
-                <View>
-                  <WebTimePicker
-                    value={time}
-                    mode="time"
-                    is24Hour={false}
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={handleTimeChange}
-                  />
-                  {Platform.OS === "ios" && (
-                    <TouchableOpacity
-                      style={styles.doneButton}
-                      onPress={() => setShowTimePicker(false)}
-                    >
-                      <Text style={styles.doneButtonText}>Done</Text>
-                    </TouchableOpacity>
+              {Platform.OS === "web" ? (
+                <WebTimePicker
+                  value={time}
+                  mode="time"
+                  is24Hour={false}
+                  onChange={handleTimeChange}
+                />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.input}
+                    onPress={() => setShowTimePicker(!showTimePicker)}
+                    disabled={loading}
+                  >
+                    <Text style={styles.timeText}>{formatTime(time)}</Text>
+                  </TouchableOpacity>
+                  {showTimePicker && (
+                    <View>
+                      <WebTimePicker
+                        value={time}
+                        mode="time"
+                        is24Hour={false}
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={handleTimeChange}
+                      />
+                      {Platform.OS === "ios" && (
+                        <TouchableOpacity
+                          style={styles.doneButton}
+                          onPress={() => setShowTimePicker(false)}
+                        >
+                          <Text style={styles.doneButtonText}>Done</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   )}
-                </View>
+                </>
               )}
             </View>
 
