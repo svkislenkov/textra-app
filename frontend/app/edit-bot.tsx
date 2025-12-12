@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Alert, S
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../lib/supabase";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import WebTimePicker from "../components/WebTimePicker";
 
 export default function EditBotScreen() {
   const { id } = useLocalSearchParams();
@@ -389,7 +389,7 @@ export default function EditBotScreen() {
               </TouchableOpacity>
               {showTimePicker && (
                 <View>
-                  <DateTimePicker
+                  <WebTimePicker
                     value={time}
                     mode="time"
                     is24Hour={false}
